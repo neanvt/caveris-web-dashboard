@@ -29,7 +29,8 @@ export default function LoginPage() {
 
     try {
       // Call .NET API for authentication
-      const response = await fetch("http://localhost:5001/api/auth/login", {
+      const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:5001/api";
+      const response = await fetch(`${API_URL}/auth/login`, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",

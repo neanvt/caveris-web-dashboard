@@ -1223,8 +1223,9 @@ export function VerifiersContent() {
                       }
 
                       // Send invitation email via .NET API
+                      const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:5001/api";
                       const response = await fetch(
-                        "http://localhost:5001/api/invitations/send",
+                        `${API_URL}/invitations/send`,
                         {
                           method: "POST",
                           headers: {
