@@ -1,0 +1,12 @@
+{
+  "version": 2,
+  "dgSpecHash": "RPjFv+yE/Hw=",
+  "success": true,
+  "projectFilePath": "/Users/neeleshtentiwala/Desktop/NewProjects/CAVERIS/caveris-web-dashboard/scripts/dotnet-test/dotnet-test.csproj",
+  "expectedPackageFiles": [
+    "/Users/neeleshtentiwala/.nuget/packages/microsoft.extensions.dependencyinjection.abstractions/9.0.0/microsoft.extensions.dependencyinjection.abstractions.9.0.0.nupkg.sha512",
+    "/Users/neeleshtentiwala/.nuget/packages/microsoft.extensions.logging.abstractions/9.0.0/microsoft.extensions.logging.abstractions.9.0.0.nupkg.sha512",
+    "/Users/neeleshtentiwala/.nuget/packages/npgsql/10.0.1/npgsql.10.0.1.nupkg.sha512"
+  ],
+  "logs": []
+}

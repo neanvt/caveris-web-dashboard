@@ -1,0 +1,2 @@
+ALTER TABLE master_centres ALTER COLUMN capacity DROP NOT NULL;
+ALTER TABLE master_centres ALTER COLUMN pincode DROP NOT NULL;
