@@ -154,8 +154,8 @@ export function ManagersContent() {
   const fetchCentresAndShifts = async (examId: string) => {
     try {
       const [centresData, shiftsData] = await Promise.all([
-        getCentres(examId),
-        getShifts(examId)
+        getCentres(),
+        getShifts()
       ]);
       setCentres(centresData || []);
       setShifts(shiftsData || []);

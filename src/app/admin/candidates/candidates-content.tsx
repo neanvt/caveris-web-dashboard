@@ -46,6 +46,9 @@ interface Candidate {
   verification_status: string;
   verification_attempts: number;
   exam_id: string;
+  exam_date?: string;
+  centre_id?: string;
+  shift_id?: string;
   created_at: string;
 }
 

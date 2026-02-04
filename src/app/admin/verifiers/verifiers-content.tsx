@@ -80,6 +80,7 @@ interface Verifier {
   city: string;
   is_active: boolean;
   created_at: string;
+  assignments?: any[];
 }
 
 export function VerifiersContent() {

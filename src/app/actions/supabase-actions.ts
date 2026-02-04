@@ -91,7 +91,6 @@ export async function getExams() {
   }
 
   // Auto-update statuses if dates indicate a change
-  const examsToUpdate: Promise<any>[] = [];
 
   const formattedData = data?.map((exam) => {
     // Only auto-update if not cancelled and dates are present
@@ -99,7 +98,7 @@ export async function getExams() {
         const correctStatus = calculateExamStatus(exam.start_date, exam.end_date);
         if (correctStatus !== exam.status && exam.status !== 'draft') {
             // Update DB in background
-            examsToUpdate.push(supabase.from('exams').update({ status: correctStatus }).eq('id', exam.id).then());
+            void supabase.from('exams').update({ status: correctStatus }).eq('id', exam.id);
             return { ...exam, status: correctStatus };
         }
     }
@@ -111,9 +110,6 @@ export async function getExams() {
       exam_date: exam.exam_date ? exam.exam_date.split('T')[0] : null,
     };
   });
-
-  // Fire and forget status updates (or await if critical)
-  if (examsToUpdate.length > 0) Promise.all(examsToUpdate);
 
   return formattedData || [];
 }
