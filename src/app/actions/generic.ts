@@ -24,7 +24,7 @@ export async function fetchSupabaseData(
   if (session.role !== "super_admin") {
     if (table === "exams") {
       query = query.eq("admin_id", session.userId);
-    } else if (table === "users" && queryOptions.eq?.some(([col]) => col === "role" && queryOptions.eq.some(([c,v]) => c === "role" && v === "verifier"))) {
+    } else if (table === "users" && queryOptions.eq && queryOptions.eq.some(([col, val]) => col === "role" && val === "verifier")) {
        // Filter verifiers by created_by
        query = query.eq("created_by", session.userId);
     }
