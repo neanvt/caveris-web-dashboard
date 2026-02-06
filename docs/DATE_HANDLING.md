@@ -4,7 +4,7 @@
 
 All dates in the CAVERIS application are handled consistently to avoid timezone issues and ensure data integrity.
 
-## Date Storage Format
+## Date Storage Format    //
 
 - **Database**: All date columns use PostgreSQL `DATE` type (not `TIMESTAMP` or `TIMESTAMPTZ`)
 - **Application**: Dates are stored and processed as strings in `YYYY-MM-DD` format
