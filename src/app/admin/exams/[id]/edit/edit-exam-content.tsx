@@ -32,6 +32,7 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
+import { Checkbox } from "@/components/ui/checkbox";
 import { useToast } from "@/hooks/use-toast";
 import { Calendar } from "@/components/ui/calendar";
 import {
@@ -58,6 +59,7 @@ const examSchema = z
     end_date: z.date(),
     description: z.string().optional(),
     status: z.enum(["draft", "scheduled", "ongoing", "completed", "cancelled"]),
+    is_testing: z.boolean().default(false),
   })
   .refine((data) => data.end_date >= data.start_date, {
     message: "End date must be after or equal to start date",
@@ -79,6 +81,7 @@ export function EditExamContent({ examId }: { examId: string }) {
       exam_code: "",
       description: "",
       status: "draft",
+      is_testing: false,
     },
   });
 
@@ -94,6 +97,7 @@ export function EditExamContent({ examId }: { examId: string }) {
           exam_code: data.exam_code,
           description: data.description || "",
           status: data.status,
+          is_testing: data.is_testing || false,
           start_date: new Date(data.start_date),
           end_date: new Date(data.end_date),
         });
@@ -126,6 +130,7 @@ export function EditExamContent({ examId }: { examId: string }) {
         start_date: format(values.start_date, "yyyy-MM-dd'T'HH:mm:ss.SSSxxx"),
         end_date: format(values.end_date, "yyyy-MM-dd'T'HH:mm:ss.SSSxxx"),
         status: values.status,
+        is_testing: values.is_testing,
       });
 
       if (result.error) {
@@ -262,10 +267,33 @@ export function EditExamContent({ examId }: { examId: string }) {
                         </SelectContent>
                       </Select>
                       <FormDescription>
-                        Change to &quot;Scheduled&quot; when exam is ready to
-                        begin
+                        Change to &quot;Scheduled&quot; when exam is ready to begin
                       </FormDescription>
                       <FormMessage />
+                    </FormItem>
+                  )}
+                />
+
+                {/* Testing Mode Checkbox */}
+                <FormField
+                  control={form.control}
+                  name="is_testing"
+                  render={({ field }) => (
+                    <FormItem className="flex flex-row items-start space-x-3 space-y-0 rounded-md border p-4">
+                      <FormControl>
+                        <Checkbox
+                          checked={field.value}
+                          onCheckedChange={field.onChange}
+                        />
+                      </FormControl>
+                      <div className="space-y-1 leading-none">
+                        <FormLabel>
+                          Testing Exam
+                        </FormLabel>
+                        <FormDescription>
+                          Mark this exam as a testing exam for verifier practice and training. Testing exams are used only for practice and won&apos;t affect real verification data.
+                        </FormDescription>
+                      </div>
                     </FormItem>
                   )}
                 />

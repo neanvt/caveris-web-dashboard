@@ -58,7 +58,8 @@ export function ViewExamContent({ examId }: { examId: string }) {
       draft: "bg-gray-100 text-gray-800",
       scheduled: "bg-blue-100 text-blue-800",
       ongoing: "bg-green-100 text-green-800",
-      completed: "bg-purple-100 text-purple-800",
+      testing: "bg-purple-100 text-purple-800",
+      completed: "bg-slate-100 text-slate-800",
       cancelled: "bg-red-100 text-red-800",
     };
     return colors[status] || "bg-gray-100 text-gray-800";

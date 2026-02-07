@@ -107,6 +107,8 @@ export function ExamsContent() {
         return "bg-yellow-100 text-yellow-800";
       case "cancelled":
         return "bg-red-100 text-red-800";
+      case "testing":
+        return "bg-purple-100 text-purple-800";
       default:
         return "bg-gray-100 text-gray-800";
     }
@@ -165,6 +167,7 @@ export function ExamsContent() {
               <option value="draft">Draft</option>
               <option value="scheduled">Scheduled</option>
               <option value="ongoing">Ongoing</option>
+              <option value="testing">Testing</option>
               <option value="completed">Completed</option>
               <option value="cancelled">Cancelled</option>
             </select>
