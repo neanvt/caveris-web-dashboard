@@ -1,7 +1,6 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { createClient } from "@/lib/supabase/client";
 import { useRouter } from "next/navigation";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -25,6 +24,7 @@ import {
   Trash2,
 } from "lucide-react";
 import { format } from "date-fns";
+import { deleteExam as deleteExamAPI } from "@/lib/api/exam-api";
 
 interface Exam {
   id: string;
@@ -72,11 +72,7 @@ export function ExamsContent() {
 
     setDeletingExamId(examId);
     try {
-      const supabase = createClient();
-      const { error } = await supabase.from("exams").delete().eq("id", examId);
-
-      if (error) throw error;
-
+      await deleteExamAPI(examId);
       setExams(exams.filter((e) => e.id !== examId));
     } catch (error) {
       console.error("Error deleting exam:", error);
