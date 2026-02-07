@@ -5,7 +5,7 @@ import { useRouter } from "next/navigation";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import * as z from "zod";
-import { createClient } from "@/lib/supabase/client";
+import { createExam } from "@/lib/api/exam-api";
 import { Button } from "@/components/ui/button";
 import {
   Form,
@@ -25,6 +25,7 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
+import { Checkbox } from "@/components/ui/checkbox";
 import { useToast } from "@/hooks/use-toast";
 import { Calendar } from "@/components/ui/calendar";
 import {
@@ -35,7 +36,6 @@ import {
 import { ArrowLeft, CalendarIcon, Loader2 } from "lucide-react";
 import { format } from "date-fns";
 import { cn } from "@/lib/utils";
-import { createExam } from "@/app/actions/supabase-actions";
 
 const examSchema = z
   .object({
@@ -50,6 +50,7 @@ const examSchema = z
     start_date: z.date(),
     end_date: z.date(),
     description: z.string().optional(),
+    is_testing: z.boolean().default(false),
   })
   .refine((data) => data.end_date >= data.start_date, {
     message: "End date must be after or equal to start date",
@@ -69,6 +70,7 @@ export function CreateExamContent() {
       exam_name: "",
       exam_code: "",
       description: "",
+      is_testing: false,
     },
   });
 
@@ -76,47 +78,15 @@ export function CreateExamContent() {
     setIsSubmitting(true);
 
     try {
-      const supabase = createClient();
-
-      // Get current user
-      const {
-        data: { user },
-        error: authError,
-      } = await supabase.auth.getUser();
-
-      if (authError || !user) {
-        throw new Error("Authentication required");
-      }
-
-      // Check if exam with same code already exists
-      const { data: existingExams } = await supabase
-        .from("exams")
-        .select("exam_code")
-        .eq("exam_code", values.exam_code)
-        .limit(1);
-
-      if (existingExams && existingExams.length > 0) {
-        toast({
-          title: "Exam Code Already Exists",
-          description:
-            "An exam with this code already exists. Please use a different code.",
-          variant: "destructive",
-        });
-        setIsSubmitting(false);
-        return;
-      }
-
+      // Call API to create exam
       const result = await createExam({
-          exam_name: values.exam_name,
-          exam_code: values.exam_code,
-          description: values.description || null,
-          start_date: format(values.start_date, "yyyy-MM-dd'T'HH:mm:ss.SSSxxx"),
-          end_date: format(values.end_date, "yyyy-MM-dd'T'HH:mm:ss.SSSxxx"),
+        examName: values.exam_name,
+        examCode: values.exam_code,
+        description: values.description || undefined,
+        startDate: values.start_date.toISOString(),
+        endDate: values.end_date.toISOString(),
+        isTesting: values.is_testing,
       });
-
-      if (result.error) {
-        throw new Error(result.error);
-      }
 
       toast({
         title: "Exam Created Successfully",
@@ -326,6 +296,30 @@ export function CreateExamContent() {
                         Optional notes or instructions for this exam
                       </FormDescription>
                       <FormMessage />
+                    </FormItem>
+                  )}
+                />
+
+                {/* Testing Mode Checkbox */}
+                <FormField
+                  control={form.control}
+                  name="is_testing"
+                  render={({ field }) => (
+                    <FormItem className="flex flex-row items-start space-x-3 space-y-0 rounded-md border p-4">
+                      <FormControl>
+                        <Checkbox
+                          checked={field.value}
+                          onCheckedChange={field.onChange}
+                        />
+                      </FormControl>
+                      <div className="space-y-1 leading-none">
+                        <FormLabel>
+                          Testing Exam
+                        </FormLabel>
+                        <FormDescription>
+                          Mark this exam as a testing exam for verifier practice and training. Testing exams are used only for practice and won&apos;t affect real verification data.
+                        </FormDescription>
+                      </div>
                     </FormItem>
                   )}
                 />
