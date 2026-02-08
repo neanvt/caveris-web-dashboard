@@ -3,8 +3,15 @@
 import { useEffect, useState } from "react";
 import { createClient } from "@/lib/supabase/client";
 import { useRouter } from "next/navigation";
-import { formatDateForDisplay, isDateBetween, parseDDMMYYYY } from "@/lib/date-utils";
-import { importCandidateRow, bulkImportCandidates } from "@/app/actions/supabase-actions";
+import {
+  formatDateForDisplay,
+  isDateBetween,
+  parseDDMMYYYY,
+} from "@/lib/date-utils";
+import {
+  importCandidateRow,
+  bulkImportCandidates,
+} from "@/app/actions/supabase-actions";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -43,6 +50,7 @@ interface Candidate {
   father_name?: string;
   email?: string;
   phone?: string;
+  photo_url?: string;
   verification_status: string;
   verification_attempts: number;
   exam_id: string;
@@ -116,12 +124,16 @@ export function CandidatesContent() {
   const [importSuccess, setImportSuccess] = useState(0);
   const [importTotal, setImportTotal] = useState(0);
   const [currentProcessingRow, setCurrentProcessingRow] = useState(0);
-  const [selectedExamForImport, setSelectedExamForImport] = useState<string>("");
-  const [selectedDateForImport, setSelectedDateForImport] = useState<string>("");
-  
+  const [selectedExamForImport, setSelectedExamForImport] =
+    useState<string>("");
+  const [selectedDateForImport, setSelectedDateForImport] =
+    useState<string>("");
+
   // Details modal state
   const [showDetailsModal, setShowDetailsModal] = useState(false);
-  const [selectedCandidate, setSelectedCandidate] = useState<Candidate | null>(null);
+  const [selectedCandidate, setSelectedCandidate] = useState<Candidate | null>(
+    null,
+  );
 
   useEffect(() => {
     loadData();
@@ -129,29 +141,24 @@ export function CandidatesContent() {
 
   const loadData = async () => {
     try {
-      const { 
-        getExams, 
-        getCentres, 
-        getShifts, 
-        getManagers, 
-        getVerifiers, 
-        getCandidates 
+      const {
+        getExams,
+        getCentres,
+        getShifts,
+        getManagers,
+        getVerifiers,
+        getCandidates,
       } = await import("@/app/actions/supabase-actions");
 
       // Load all data using server actions
-      const [
-        examData,
-        centreData,
-        shiftData,
-        managerData,
-        verifierData
-      ] = await Promise.all([
-        getExams(),
-        getCentres(),
-        getShifts(),
-        getManagers(),
-        getVerifiers()
-      ]);
+      const [examData, centreData, shiftData, managerData, verifierData] =
+        await Promise.all([
+          getExams(),
+          getCentres(),
+          getShifts(),
+          getManagers(),
+          getVerifiers(),
+        ]);
 
       setExams(examData);
       setCentres(centreData);
@@ -159,8 +166,8 @@ export function CandidatesContent() {
       setManagers(managerData);
       setVerifiers(verifierData);
 
-      console.log('Loaded exams:', examData);
-      console.log('Exams count:', examData?.length || 0);
+      console.log("Loaded exams:", examData);
+      console.log("Exams count:", examData?.length || 0);
 
       const examIds = examData?.map((e: any) => e.id) || [];
 
@@ -224,24 +231,45 @@ export function CandidatesContent() {
         throw new Error("CSV file is empty or invalid");
       }
 
-      const headers = rows[0].map((h) => h.toLowerCase().trim().replace(/\*/g, ''));
+      const headers = rows[0].map((h) =>
+        h.toLowerCase().trim().replace(/\*/g, ""),
+      );
       const dataRows = rows.slice(1);
-      
+
       const errors: ImportError[] = [];
       let successCount = 0;
 
       // Expected headers
       const requiredHeaders = [
-        "roll_number", "full_name", "exam_name", "exam_code", "exam_date",
-        "exam_start_date", "exam_end_date", "shift_code", "shift_name",
-        "gate_open_time", "gate_close_time", "start_time", "end_time",
-        "centre_name", "centre_code", "centre_city", "centre_state", "centre_address",
-        "centre_contact_person", "centre_phone"
+        "roll_number",
+        "full_name",
+        "exam_name",
+        "exam_code",
+        "exam_date",
+        "exam_start_date",
+        "exam_end_date",
+        "shift_code",
+        "shift_name",
+        "gate_open_time",
+        "gate_close_time",
+        "start_time",
+        "end_time",
+        "centre_name",
+        "centre_code",
+        "centre_city",
+        "centre_state",
+        "centre_address",
+        "centre_contact_person",
+        "centre_phone",
       ];
 
       for (const required of requiredHeaders) {
         if (!headers.includes(required)) {
-          errors.push({ row: 0, field: required, message: `Missing required column: ${required}` });
+          errors.push({
+            row: 0,
+            field: required,
+            message: `Missing required column: ${required}`,
+          });
         }
       }
 
@@ -256,38 +284,57 @@ export function CandidatesContent() {
       // Validate all rows locally first
       for (let i = 0; i < dataRows.length; i++) {
         const row = dataRows[i];
-        const rowNum = i + 2; 
+        const rowNum = i + 2;
 
         // Update UI occasionally during validation too if list is huge
         if (i % 500 === 0) {
-             setCurrentProcessingRow(i + 1);
-             await new Promise(r => setTimeout(r, 0));
+          setCurrentProcessingRow(i + 1);
+          await new Promise((r) => setTimeout(r, 0));
         }
 
         const candidate: any = {};
         headers.forEach((header, index) => {
           candidate[header] = row[index]?.trim() || "";
         });
-        
+
         // Skip completely empty rows
-        if (!Object.values(candidate).some(v => v)) continue;
+        if (!Object.values(candidate).some((v) => v)) continue;
 
         // Validation Checks
         let rowHasError = false;
 
         const mandatoryFields = [
-            "roll_number", "full_name", "exam_name", "exam_code", "exam_date", 
-            "exam_start_date", "exam_end_date", "shift_code", "shift_name", 
-            "gate_open_time", "gate_close_time", "start_time", "end_time",
-            "centre_name", "centre_code", "centre_city", "centre_state", "centre_address", 
-            "centre_contact_person", "centre_phone"
+          "roll_number",
+          "full_name",
+          "exam_name",
+          "exam_code",
+          "exam_date",
+          "exam_start_date",
+          "exam_end_date",
+          "shift_code",
+          "shift_name",
+          "gate_open_time",
+          "gate_close_time",
+          "start_time",
+          "end_time",
+          "centre_name",
+          "centre_code",
+          "centre_city",
+          "centre_state",
+          "centre_address",
+          "centre_contact_person",
+          "centre_phone",
         ];
 
         for (const field of mandatoryFields) {
-            if (!candidate[field]) {
-                errors.push({ row: rowNum, field, message: `${field} is MANDATORY` });
-                rowHasError = true;
-            }
+          if (!candidate[field]) {
+            errors.push({
+              row: rowNum,
+              field,
+              message: `${field} is MANDATORY`,
+            });
+            rowHasError = true;
+          }
         }
 
         if (rowHasError) continue;
@@ -295,12 +342,17 @@ export function CandidatesContent() {
         // Basic Format Checks (No conversion, just validation)
         const dateRegex = /^\d{4}-\d{2}-\d{2}$/; // YYYY-MM-DD
         if (
-            candidate.exam_date && !dateRegex.test(candidate.exam_date) ||
-            candidate.exam_start_date && !dateRegex.test(candidate.exam_start_date) ||
-            candidate.exam_end_date && !dateRegex.test(candidate.exam_end_date)
+          (candidate.exam_date && !dateRegex.test(candidate.exam_date)) ||
+          (candidate.exam_start_date &&
+            !dateRegex.test(candidate.exam_start_date)) ||
+          (candidate.exam_end_date && !dateRegex.test(candidate.exam_end_date))
         ) {
-            errors.push({ row: rowNum, field: "dates", message: "Dates must be in YYYY-MM-DD format" });
-            continue;
+          errors.push({
+            row: rowNum,
+            field: "dates",
+            message: "Dates must be in YYYY-MM-DD format",
+          });
+          continue;
         }
 
         // Add to valid list
@@ -320,39 +372,55 @@ export function CandidatesContent() {
       for (let i = 0; i < validRows.length; i += BATCH_SIZE) {
         const batchNumber = Math.floor(i / BATCH_SIZE) + 1;
         const totalBatches = Math.ceil(validRows.length / BATCH_SIZE);
-        
+
         // Update UI
         setCurrentProcessingRow(Math.min(i + BATCH_SIZE, validRows.length));
-        await new Promise(r => setTimeout(r, 0));
+        await new Promise((r) => setTimeout(r, 0));
 
         const batch = validRows.slice(i, i + BATCH_SIZE);
         const result = await bulkImportCandidates(batch);
 
         if (result.error) {
-             setImportErrors(prev => [...prev, { row: i, field: "bulk_batch_" + batchNumber, message: result.error || "Unknown batch error" }]);
-             // Continue? Or abort? Usually safe to continue if batches are independent, 
-             // but if exams/centres are shared it might be messy. 
-             // But existing ones are idempotently created.
+          setImportErrors((prev) => [
+            ...prev,
+            {
+              row: i,
+              field: "bulk_batch_" + batchNumber,
+              message: result.error || "Unknown batch error",
+            },
+          ]);
+          // Continue? Or abort? Usually safe to continue if batches are independent,
+          // but if exams/centres are shared it might be messy.
+          // But existing ones are idempotently created.
         } else {
-             successCount += (result.count || 0);
-             setImportSuccess(successCount);
-             // Log duplicates skipped if any
-             if (result.duplicates && result.duplicates > 0) {
-                console.log(`Batch ${batchNumber}: Skipped ${result.duplicates} duplicate roll numbers (assignments still created)`);
-             }
-             // Log assignment creations
-             if (result.examCentreAssignments) {
-                const eca = result.examCentreAssignments;
-                console.log(`Batch ${batchNumber}: exam_centre_assignments - ${eca.new} new, ${eca.existing} existing`);
-             }
-             if (result.centreShiftAssignments) {
-                const csa = result.centreShiftAssignments;
-                console.log(`Batch ${batchNumber}: centre_shift_assignments - ${csa.new} new, ${csa.existing} existing`);
-             }
-             // Log debug info
-             if (result.debug) {
-                console.log(`Batch ${batchNumber} DEBUG:`, JSON.stringify(result.debug, null, 2));
-             }
+          successCount += result.count || 0;
+          setImportSuccess(successCount);
+          // Log duplicates skipped if any
+          if (result.duplicates && result.duplicates > 0) {
+            console.log(
+              `Batch ${batchNumber}: Skipped ${result.duplicates} duplicate roll numbers (assignments still created)`,
+            );
+          }
+          // Log assignment creations
+          if (result.examCentreAssignments) {
+            const eca = result.examCentreAssignments;
+            console.log(
+              `Batch ${batchNumber}: exam_centre_assignments - ${eca.new} new, ${eca.existing} existing`,
+            );
+          }
+          if (result.centreShiftAssignments) {
+            const csa = result.centreShiftAssignments;
+            console.log(
+              `Batch ${batchNumber}: centre_shift_assignments - ${csa.new} new, ${csa.existing} existing`,
+            );
+          }
+          // Log debug info
+          if (result.debug) {
+            console.log(
+              `Batch ${batchNumber} DEBUG:`,
+              JSON.stringify(result.debug, null, 2),
+            );
+          }
         }
       }
 
@@ -361,18 +429,20 @@ export function CandidatesContent() {
         await loadData();
       }
 
-      if (importErrors.length === 0) { // Check current ref if possible, but state is async. Use successCount vs total.
+      if (importErrors.length === 0) {
+        // Check current ref if possible, but state is async. Use successCount vs total.
         setTimeout(() => {
           if (successCount === validRows.length) {
-              setShowImportModal(false);
-              setCsvFile(null);
+            setShowImportModal(false);
+            setCsvFile(null);
           }
         }, 2000);
       }
-
     } catch (error: any) {
       console.error("Import error:", error);
-      setImportErrors([{ row: 0, field: "general", message: error.message || "Import failed" }]);
+      setImportErrors([
+        { row: 0, field: "general", message: error.message || "Import failed" },
+      ]);
     } finally {
       setImporting(false);
     }
@@ -427,8 +497,12 @@ export function CandidatesContent() {
     // Format dates as YYYY-MM-DD for the template (raw format as requested)
     const examStartDate = selectedExam?.start_date || "2026-02-15";
     const examEndDate = selectedExam?.end_date || "2026-02-15";
-    
-    let rawExamDate = selectedDateForImport || selectedExam?.exam_date || selectedExam?.start_date || "2026-02-15";
+
+    let rawExamDate =
+      selectedDateForImport ||
+      selectedExam?.exam_date ||
+      selectedExam?.start_date ||
+      "2026-02-15";
     const examDate = rawExamDate;
 
     const sample1 = [
@@ -508,15 +582,17 @@ export function CandidatesContent() {
     const csv = [headers.join(","), sample1.join(","), sample2.join(",")].join(
       "\n",
     );
-    
+
     // Use data URI instead of Blob for better filename support
     const csvContent = "\ufeff" + csv; // Add BOM for Excel
-    const dataUri = "data:text/csv;charset=utf-8," + encodeURIComponent(csvContent);
-    
+    const dataUri =
+      "data:text/csv;charset=utf-8," + encodeURIComponent(csvContent);
+
     const link = document.createElement("a");
-    const filename = selectedExam && selectedDateForImport
-      ? `candidate_import_${examCode}_${examName.replace(/\s+/g, "_")}_${selectedDateForImport.replace(/-/g, "_")}.csv`
-      : "candidate_import_sample.csv";
+    const filename =
+      selectedExam && selectedDateForImport
+        ? `candidate_import_${examCode}_${examName.replace(/\s+/g, "_")}_${selectedDateForImport.replace(/-/g, "_")}.csv`
+        : "candidate_import_sample.csv";
     link.href = dataUri;
     link.download = filename;
     link.click();
@@ -527,7 +603,14 @@ export function CandidatesContent() {
   // Reset pagination when filters change
   useEffect(() => {
     setVisibleCount(50);
-  }, [searchQuery, statusFilter, examFilter, dateFilter, centreFilter, shiftFilter]);
+  }, [
+    searchQuery,
+    statusFilter,
+    examFilter,
+    dateFilter,
+    centreFilter,
+    shiftFilter,
+  ]);
 
   const filteredCandidates = candidates.filter((candidate) => {
     const matchesSearch =
@@ -553,9 +636,8 @@ export function CandidatesContent() {
       matchesShift
     );
   });
-  
-  const displayedCandidates = filteredCandidates.slice(0, visibleCount);
 
+  const displayedCandidates = filteredCandidates.slice(0, visibleCount);
 
   const getStatusIcon = (status: string) => {
     switch (status) {
@@ -720,6 +802,7 @@ export function CandidatesContent() {
             <Table>
               <TableHeader>
                 <TableRow>
+                  <TableHead>Photo</TableHead>
                   <TableHead>Roll Number</TableHead>
                   <TableHead>Name</TableHead>
                   <TableHead>Father&apos;s Name</TableHead>
@@ -733,6 +816,38 @@ export function CandidatesContent() {
               <TableBody>
                 {displayedCandidates.map((candidate) => (
                   <TableRow key={candidate.id}>
+                    <TableCell>
+                      {candidate.photo_url ? (
+                        <img
+                          src={candidate.photo_url}
+                          alt={candidate.full_name}
+                          className="h-12 w-12 rounded-full object-cover"
+                          onError={(e) => {
+                            const target = e.currentTarget;
+                            target.onerror = null;
+                            target.style.display = "none";
+                            const parent = target.parentElement;
+                            if (
+                              parent &&
+                              !parent.querySelector(".fallback-avatar")
+                            ) {
+                              const fallback = document.createElement("div");
+                              fallback.className =
+                                "fallback-avatar h-12 w-12 rounded-full bg-gray-200 flex items-center justify-center";
+                              fallback.innerHTML = `<span class="text-gray-500 text-sm font-semibold">${candidate.full_name?.charAt(0)?.toUpperCase() || "?"}</span>`;
+                              parent.appendChild(fallback);
+                            }
+                          }}
+                        />
+                      ) : (
+                        <div className="h-12 w-12 rounded-full bg-gray-200 flex items-center justify-center">
+                          <span className="text-gray-500 text-sm font-semibold">
+                            {candidate.full_name?.charAt(0)?.toUpperCase() ||
+                              "?"}
+                          </span>
+                        </div>
+                      )}
+                    </TableCell>
                     <TableCell>
                       <span className="font-mono text-sm font-medium">
                         {candidate.roll_number}
@@ -851,14 +966,19 @@ export function CandidatesContent() {
                   const examsForDate = exams.filter((exam) => {
                     if (!exam.start_date || !exam.end_date) return false;
                     // Use utility function for date comparison
-                    return isDateBetween(selectedDateForImport, exam.start_date, exam.end_date);
+                    return isDateBetween(
+                      selectedDateForImport,
+                      exam.start_date,
+                      exam.end_date,
+                    );
                   });
 
                   if (examsForDate.length === 0) {
                     return (
                       <div className="rounded-md border border-yellow-200 bg-yellow-50 p-3">
                         <p className="text-sm text-yellow-800">
-                          No exams scheduled for {formatDateForDisplay(selectedDateForImport)}
+                          No exams scheduled for{" "}
+                          {formatDateForDisplay(selectedDateForImport)}
                         </p>
                       </div>
                     );
@@ -868,7 +988,9 @@ export function CandidatesContent() {
                     <>
                       <select
                         value={selectedExamForImport}
-                        onChange={(e) => setSelectedExamForImport(e.target.value)}
+                        onChange={(e) =>
+                          setSelectedExamForImport(e.target.value)
+                        }
                         className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm focus:border-green-500 focus:outline-none focus:ring-1 focus:ring-green-500"
                         disabled={importing}
                       >
@@ -904,8 +1026,9 @@ export function CandidatesContent() {
                     <strong>MANDATORY Candidate:</strong> roll_number, full_name
                   </p>
                   <p className="text-sm text-blue-700 mb-2">
-                    <strong>OPTIONAL Candidate:</strong> father_name, date_of_birth, gender, aadhaar_number, address, email,
-                    phone (10 digits, no ISD code), photo_url
+                    <strong>OPTIONAL Candidate:</strong> father_name,
+                    date_of_birth, gender, aadhaar_number, address, email, phone
+                    (10 digits, no ISD code), photo_url
                   </p>
                   <p className="text-sm text-blue-700 mb-2">
                     <strong>MANDATORY Exam:</strong> exam_name, exam_start_date,
@@ -983,7 +1106,9 @@ export function CandidatesContent() {
                   </span>
                 </div>
                 <div className="text-sm text-gray-600">
-                  <p>Processing row {currentProcessingRow} of {importTotal}</p>
+                  <p>
+                    Processing row {currentProcessingRow} of {importTotal}
+                  </p>
                   <p className="text-xs mt-1 text-gray-500">
                     Success: {importSuccess} | Errors: {importErrors.length}
                   </p>
@@ -1109,60 +1234,81 @@ export function CandidatesContent() {
                 </div>
                 <div>
                   <p className="text-gray-500">Father&apos;s Name</p>
-                  <p className="font-medium">{selectedCandidate.father_name || "N/A"}</p>
+                  <p className="font-medium">
+                    {selectedCandidate.father_name || "N/A"}
+                  </p>
                 </div>
                 <div>
                   <p className="text-gray-500">Status</p>
                   <div className="flex items-center gap-1 mt-1">
                     {getStatusIcon(selectedCandidate.verification_status)}
-                    <span className={`text-xs px-2 py-0.5 rounded-full ${getStatusColor(selectedCandidate.verification_status)}`}>
+                    <span
+                      className={`text-xs px-2 py-0.5 rounded-full ${getStatusColor(selectedCandidate.verification_status)}`}
+                    >
                       {selectedCandidate.verification_status}
                     </span>
                   </div>
                 </div>
                 <div>
                   <p className="text-gray-500">Email</p>
-                  <p className="font-medium">{selectedCandidate.email || "N/A"}</p>
+                  <p className="font-medium">
+                    {selectedCandidate.email || "N/A"}
+                  </p>
                 </div>
                 <div>
                   <p className="text-gray-500">Phone</p>
-                  <p className="font-medium">{selectedCandidate.phone || "N/A"}</p>
+                  <p className="font-medium">
+                    {selectedCandidate.phone || "N/A"}
+                  </p>
                 </div>
 
                 <div className="col-span-2 border-t pt-3 mt-1">
-                  <p className="text-gray-900 font-semibold mb-2">Exam Assignment</p>
+                  <p className="text-gray-900 font-semibold mb-2">
+                    Exam Assignment
+                  </p>
                 </div>
 
                 <div className="col-span-2">
                   <p className="text-gray-500">Exam</p>
                   <p className="font-medium">
-                    {exams.find((e) => e.id === selectedCandidate.exam_id)?.exam_name || "Unknown Exam"}
+                    {exams.find((e) => e.id === selectedCandidate.exam_id)
+                      ?.exam_name || "Unknown Exam"}
                   </p>
                 </div>
                 <div>
                   <p className="text-gray-500">Exam Date</p>
-                  <p className="font-medium">{(selectedCandidate as any).exam_date || "N/A"}</p>
+                  <p className="font-medium">
+                    {(selectedCandidate as any).exam_date || "N/A"}
+                  </p>
                 </div>
-               
+
                 <div className="col-span-2">
                   <p className="text-gray-500">Centre</p>
                   <p className="font-medium">
-                    {centres.find((c) => c.id === (selectedCandidate as any).centre_id)?.centre_name || "Unknown Centre"}
+                    {centres.find(
+                      (c) => c.id === (selectedCandidate as any).centre_id,
+                    )?.centre_name || "Unknown Centre"}
                   </p>
                   <p className="text-xs text-gray-400">
-                    {centres.find((c) => c.id === (selectedCandidate as any).centre_id)?.city || ""}
+                    {centres.find(
+                      (c) => c.id === (selectedCandidate as any).centre_id,
+                    )?.city || ""}
                   </p>
                 </div>
                 <div>
                   <p className="text-gray-500">Shift</p>
                   <p className="font-medium">
-                    {shifts.find((s) => s.id === (selectedCandidate as any).shift_id)?.shift_name || "Unknown Shift"}
+                    {shifts.find(
+                      (s) => s.id === (selectedCandidate as any).shift_id,
+                    )?.shift_name || "Unknown Shift"}
                   </p>
                 </div>
               </div>
 
               <div className="flex justify-end pt-4">
-                <Button onClick={() => setShowDetailsModal(false)}>Close</Button>
+                <Button onClick={() => setShowDetailsModal(false)}>
+                  Close
+                </Button>
               </div>
             </div>
           )}
