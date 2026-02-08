@@ -50,7 +50,7 @@ const examSchema = z
     start_date: z.date(),
     end_date: z.date(),
     description: z.string().optional(),
-    is_testing: z.boolean().default(false),
+    is_testing: z.boolean().optional().default(false),
   })
   .refine((data) => data.end_date >= data.start_date, {
     message: "End date must be after or equal to start date",
@@ -313,11 +313,11 @@ export function CreateExamContent() {
                         />
                       </FormControl>
                       <div className="space-y-1 leading-none">
-                        <FormLabel>
-                          Testing Exam
-                        </FormLabel>
+                        <FormLabel>Testing Exam</FormLabel>
                         <FormDescription>
-                          Mark this exam as a testing exam for verifier practice and training. Testing exams are used only for practice and won&apos;t affect real verification data.
+                          Mark this exam as a testing exam for verifier practice
+                          and training. Testing exams are used only for practice
+                          and won&apos;t affect real verification data.
                         </FormDescription>
                       </div>
                     </FormItem>
