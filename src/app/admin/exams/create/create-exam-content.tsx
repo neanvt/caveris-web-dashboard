@@ -50,7 +50,7 @@ const examSchema = z
     start_date: z.date(),
     end_date: z.date(),
     description: z.string().optional(),
-    is_testing: z.boolean().optional().default(false),
+    is_testing: z.boolean().catch(false),
   })
   .refine((data) => data.end_date >= data.start_date, {
     message: "End date must be after or equal to start date",
