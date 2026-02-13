@@ -137,6 +137,8 @@ export function CandidatesContent() {
   const [selectedCandidate, setSelectedCandidate] = useState<Candidate | null>(
     null,
   );
+  const [editPhotoFile, setEditPhotoFile] = useState<File | null>(null);
+  const [editPhotoPreview, setEditPhotoPreview] = useState<string | null>(null);
 
   useEffect(() => {
     loadData();
@@ -1344,7 +1346,17 @@ export function CandidatesContent() {
       </Dialog>
 
       {/* Edit Candidate Modal */}
-      <Dialog open={showEditModal} onOpenChange={setShowEditModal}>
+      <Dialog
+        open={showEditModal}
+        onOpenChange={(open) => {
+          setShowEditModal(open);
+          if (!open) {
+            // Clear photo state when modal closes
+            setEditPhotoFile(null);
+            setEditPhotoPreview(null);
+          }
+        }}
+      >
         <DialogContent className="max-w-2xl">
           <DialogHeader>
             <DialogTitle>Edit Candidate</DialogTitle>
@@ -1421,6 +1433,83 @@ export function CandidatesContent() {
                 </div>
               </div>
 
+              {/* Photo Upload Section */}
+              <div className="mt-6 border-t pt-6">
+                <label className="text-sm font-medium text-gray-700 block mb-2">
+                  Update Photo (Optional)
+                </label>
+                <div className="flex items-start gap-4">
+                  {/* Current/New Photo Preview */}
+                  <div className="flex-shrink-0">
+                    {editPhotoPreview ? (
+                      <div className="relative">
+                        <img
+                          src={editPhotoPreview}
+                          alt="New photo preview"
+                          className="w-32 h-32 object-cover rounded-lg border-2 border-green-500"
+                        />
+                        <button
+                          onClick={() => {
+                            setEditPhotoFile(null);
+                            setEditPhotoPreview(null);
+                          }}
+                          className="absolute -top-2 -right-2 bg-red-500 text-white rounded-full p-1 hover:bg-red-600 transition-colors"
+                        >
+                          <X className="h-4 w-4" />
+                        </button>
+                      </div>
+                    ) : selectedCandidate.photo_url ? (
+                      <img
+                        src={selectedCandidate.photo_url}
+                        alt="Current photo"
+                        className="w-32 h-32 object-cover rounded-lg border-2 border-gray-300"
+                      />
+                    ) : (
+                      <div className="w-32 h-32 bg-gray-100 rounded-lg border-2 border-dashed border-gray-300 flex items-center justify-center">
+                        <Upload className="h-8 w-8 text-gray-400" />
+                      </div>
+                    )}
+                  </div>
+
+                  {/* Upload Button */}
+                  <div className="flex-1">
+                    <Input
+                      id="edit-photo-input"
+                      type="file"
+                      accept="image/*"
+                      className="hidden"
+                      onChange={(e) => {
+                        const file = e.target.files?.[0];
+                        if (file) {
+                          setEditPhotoFile(file);
+                          const reader = new FileReader();
+                          reader.onloadend = () => {
+                            setEditPhotoPreview(reader.result as string);
+                          };
+                          reader.readAsDataURL(file);
+                        }
+                      }}
+                    />
+                    <Button
+                      type="button"
+                      variant="outline"
+                      onClick={() => {
+                        document.getElementById('edit-photo-input')?.click();
+                      }}
+                      className="w-full"
+                    >
+                      <Upload className="h-4 w-4 mr-2" />
+                      {editPhotoPreview ? 'Change Photo' : 'Upload New Photo'}
+                    </Button>
+                    <p className="text-xs text-gray-500 mt-2">
+                      {editPhotoPreview
+                        ? 'New photo will be uploaded on save'
+                        : 'Select a clear frontal photo (JPG, PNG)'}
+                    </p>
+                  </div>
+                </div>
+              </div>
+
               <div className="flex justify-end gap-2 pt-6">
                 <Button
                   variant="outline"
@@ -1470,9 +1559,41 @@ export function CandidatesContent() {
 
                       if (error) throw error;
 
-                      alert("Candidate updated successfully");
-                      setShowEditModal(false);
-                      loadData(); // Reload data to show updates
+                      // Upload photo if selected
+                      if (editPhotoFile) {
+                        const reader = new FileReader();
+                        reader.onloadend = async () => {
+                          try {
+                            const base64 = (reader.result as string).split(',')[1];
+                            const response = await fetch(
+                              `/api/candidates/${selectedCandidate.id}/photo`,
+                              {
+                                method: 'POST',
+                                headers: { 'Content-Type': 'application/json' },
+                                body: JSON.stringify({ photoBase64: base64 }),
+                              }
+                            );
+
+                            if (!response.ok) {
+                              throw new Error('Failed to upload photo');
+                            }
+
+                            alert("Candidate updated successfully with new photo!");
+                            setShowEditModal(false);
+                            setEditPhotoFile(null);
+                            setEditPhotoPreview(null);
+                            loadData(); // Reload data to show updates
+                          } catch (photoError) {
+                            console.error("Error uploading photo:", photoError);
+                            alert("Candidate updated but photo upload failed");
+                          }
+                        };
+                        reader.readAsDataURL(editPhotoFile);
+                      } else {
+                        alert("Candidate updated successfully");
+                        setShowEditModal(false);
+                        loadData(); // Reload data to show updates
+                      }
                     } catch (error) {
                       console.error("Error updating candidate:", error);
                       alert("Failed to update candidate");
