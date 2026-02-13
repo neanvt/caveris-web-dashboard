@@ -11,10 +11,10 @@ import { createClient } from "@/lib/supabase/server";
 
 export async function POST(
   request: NextRequest,
-  { params }: { params: { id: string } },
+  { params }: { params: Promise<{ id: string }> },
 ) {
   try {
-    const candidateId = params.id;
+    const { id: candidateId } = await params;
 
     // Parse request body
     const body = await request.json();
@@ -147,10 +147,10 @@ export async function POST(
 
 export async function GET(
   request: NextRequest,
-  { params }: { params: { id: string } },
+  { params }: { params: Promise<{ id: string }> },
 ) {
   try {
-    const candidateId = params.id;
+    const { id: candidateId } = await params;
     const supabase = await createClient();
 
     // Get candidate photo and embedding
