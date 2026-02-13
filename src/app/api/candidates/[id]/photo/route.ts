@@ -74,32 +74,33 @@ export async function POST(
     const filename = `${candidateId}_${timestamp}.jpg`;
     const storagePath = `candidates/${filename}`;
 
-    // Upload photo to Supabase Storage
-    const { error: uploadError } = await supabase.storage
-      .from("candidate-photos")
-      .upload(storagePath, photoBuffer, {
-        contentType: "image/jpeg",
-        upsert: true,
-      });
+    let photoUrl = null;
 
-    if (uploadError) {
-      console.error("Storage upload error:", uploadError);
-      return NextResponse.json(
-        { error: "Failed to upload photo to storage" },
-        { status: 500 },
-      );
+    // Try to upload photo to Supabase Storage (optional - fallback to database only)
+    try {
+      const { error: uploadError } = await supabase.storage
+        .from("candidate-photos")
+        .upload(storagePath, photoBuffer, {
+          contentType: "image/jpeg",
+          upsert: true,
+        });
+
+      if (uploadError) {
+        console.warn("Storage upload failed, will store photo in database only:", uploadError);
+      } else {
+        // Get public URL
+        const { data: publicUrlData } = supabase.storage
+          .from("candidate-photos")
+          .getPublicUrl(storagePath);
+        photoUrl = publicUrlData.publicUrl;
+      }
+    } catch (storageError) {
+      console.warn("Storage operation failed, will store photo in database only:", storageError);
     }
 
-    // Get public URL
-    const { data: publicUrlData } = supabase.storage
-      .from("candidate-photos")
-      .getPublicUrl(storagePath);
-
-    const photoUrl = publicUrlData.publicUrl;
-
-    // Update candidate record with photo URL, binary data, and embedding
+    // Update candidate record with photo URL (if available), binary data, and embedding
     const updateData: {
-      photo_url: string;
+      photo_url: string | null;
       photo_data: Buffer;
       updated_at: string;
       face_embedding?: number[];
@@ -130,17 +131,18 @@ export async function POST(
 
     console.log(`✅ Photo uploaded for candidate ${candidateId}`, {
       filename,
-      photoUrl,
+      photoUrl: photoUrl || 'stored in database only',
       hasEmbedding: !!faceEmbedding,
       embeddingDims: faceEmbedding?.length,
     });
 
     return NextResponse.json({
       success: true,
-      photoUrl,
+      photoUrl: photoUrl || `/api/candidates/${candidateId}/photo`,
       message: faceEmbedding
         ? "Photo and face embedding saved successfully"
         : "Photo saved successfully",
+      storageUsed: !!photoUrl,
       embedding: faceEmbedding
         ? {
             dimensions: faceEmbedding.length,
@@ -177,10 +179,14 @@ export async function GET(
     const { id: candidateId } = await params;
     const supabase = await createAdminClient();
 
-    // Get candidate photo and embedding
+    // Check if request wants metadata (JSON) or image data
+    const acceptHeader = request.headers.get("accept") || "";
+    const wantsJson = acceptHeader.includes("application/json");
+
+    // Get candidate photo data
     const { data, error } = await supabase
       .from("candidates")
-      .select("id, full_name, photo_url, face_embedding")
+      .select("id, full_name, photo_url, photo_data, face_embedding")
       .eq("id", candidateId)
       .single();
 
@@ -191,12 +197,31 @@ export async function GET(
       );
     }
 
-    return NextResponse.json({
-      id: data.id,
-      fullName: data.full_name,
-      photoUrl: data.photo_url,
-      hasEmbedding: !!data.face_embedding,
-      embeddingDimensions: data.face_embedding?.length || 0,
+    // If request wants JSON metadata, return that
+    if (wantsJson) {
+      return NextResponse.json({
+        id: data.id,
+        fullName: data.full_name,
+        photoUrl: data.photo_url || `/api/candidates/${candidateId}/photo`,
+        hasEmbedding: !!data.face_embedding,
+        embeddingDimensions: data.face_embedding?.length || 0,
+      });
+    }
+
+    // Otherwise, return the actual image data
+    if (!data.photo_data) {
+      return NextResponse.json(
+        { error: "No photo available for this candidate" },
+        { status: 404 },
+      );
+    }
+
+    // Return image data as JPEG
+    return new NextResponse(data.photo_data, {
+      headers: {
+        "Content-Type": "image/jpeg",
+        "Cache-Control": "public, max-age=31536000, immutable",
+      },
     });
   } catch (error) {
     console.error("❌ Get photo error:", error);

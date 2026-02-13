@@ -658,6 +658,21 @@ export function CandidatesContent() {
     }
   };
 
+  // Helper to get secure photo URL (use API endpoint for database photos)
+  const getSecurePhotoUrl = (candidate: Candidate) => {
+    if (!candidate.photo_url) {
+      // No photo URL, serve from database via API
+      return `/api/candidates/${candidate.id}/photo`;
+    }
+    // Check if photo_url is insecure (http://) or points to old backend
+    if (candidate.photo_url.startsWith('http://') || candidate.photo_url.includes('10.0.2.2')) {
+      // Use API endpoint instead of insecure URL
+      return `/api/candidates/${candidate.id}/photo`;
+    }
+    // Use the existing photo_url (Supabase Storage or other HTTPS source)
+    return candidate.photo_url;
+  };
+
   const getStatusColor = (status: string) => {
     switch (status) {
       case "verified":
@@ -834,7 +849,7 @@ export function CandidatesContent() {
                     <TableCell>
                       {candidate.photo_url ? (
                         <img
-                          src={candidate.photo_url}
+                          src={getSecurePhotoUrl(candidate)}
                           alt={candidate.full_name}
                           className="h-12 w-12 rounded-full object-cover"
                           onError={(e) => {
@@ -1470,7 +1485,7 @@ export function CandidatesContent() {
                       </div>
                     ) : selectedCandidate.photo_url ? (
                       <img
-                        src={selectedCandidate.photo_url}
+                        src={getSecurePhotoUrl(selectedCandidate)}
                         alt="Current photo"
                         className="w-32 h-32 object-cover rounded-lg border-2 border-gray-300"
                       />
