@@ -1585,7 +1585,8 @@ export function CandidatesContent() {
                             );
 
                             if (!response.ok) {
-                              throw new Error('Failed to upload photo');
+                              const errorData = await response.json().catch(() => ({}));
+                              throw new Error(errorData.error || `Upload failed: ${response.status}`);
                             }
 
                             alert("Candidate updated successfully with new photo!");
@@ -1595,7 +1596,14 @@ export function CandidatesContent() {
                             loadData(); // Reload data to show updates
                           } catch (photoError) {
                             console.error("Error uploading photo:", photoError);
-                            alert("Candidate updated but photo upload failed");
+                            const errorMessage = photoError instanceof Error 
+                              ? photoError.message 
+                              : "Unknown error";
+                            alert(`Candidate updated but photo upload failed: ${errorMessage}`);
+                            setShowEditModal(false);
+                            setEditPhotoFile(null);
+                            setEditPhotoPreview(null);
+                            loadData(); // Still reload to show basic info updates
                           }
                         };
                         reader.readAsDataURL(editPhotoFile);

@@ -7,13 +7,23 @@
  */
 
 import { NextRequest, NextResponse } from "next/server";
-import { createClient } from "@/lib/supabase/server";
+import { createAdminClient } from "@/lib/supabase/server";
+import { getAuthSession } from "@/lib/auth-server";
 
 export async function POST(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> },
 ) {
   try {
+    // Check authentication
+    const session = await getAuthSession();
+    if (!session) {
+      return NextResponse.json(
+        { error: "Unauthorized" },
+        { status: 401 },
+      );
+    }
+
     const { id: candidateId } = await params;
 
     // Parse request body
@@ -39,8 +49,8 @@ export async function POST(
       );
     }
 
-    // Get Supabase client
-    const supabase = await createClient();
+    // Get Supabase admin client (bypasses RLS)
+    const supabase = await createAdminClient();
 
     // Verify candidate exists
     const { data: candidate, error: candidateError } = await supabase
@@ -65,7 +75,7 @@ export async function POST(
     const storagePath = `candidates/${filename}`;
 
     // Upload photo to Supabase Storage
-    const { data: uploadData, error: uploadError } = await supabase.storage
+    const { error: uploadError } = await supabase.storage
       .from("candidate-photos")
       .upload(storagePath, photoBuffer, {
         contentType: "image/jpeg",
@@ -88,7 +98,12 @@ export async function POST(
     const photoUrl = publicUrlData.publicUrl;
 
     // Update candidate record with photo URL, binary data, and embedding
-    const updateData: any = {
+    const updateData: {
+      photo_url: string;
+      photo_data: Buffer;
+      updated_at: string;
+      face_embedding?: number[];
+    } = {
       photo_url: photoUrl,
       photo_data: photoBuffer,
       updated_at: new Date().toISOString(),
@@ -150,8 +165,17 @@ export async function GET(
   { params }: { params: Promise<{ id: string }> },
 ) {
   try {
+    // Check authentication
+    const session = await getAuthSession();
+    if (!session) {
+      return NextResponse.json(
+        { error: "Unauthorized" },
+        { status: 401 },
+      );
+    }
+
     const { id: candidateId } = await params;
-    const supabase = await createClient();
+    const supabase = await createAdminClient();
 
     // Get candidate photo and embedding
     const { data, error } = await supabase
