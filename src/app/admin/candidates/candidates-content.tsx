@@ -34,6 +34,7 @@ import {
   FileUp,
   AlertCircle,
   X,
+  Edit,
 } from "lucide-react";
 import {
   Dialog,
@@ -67,6 +68,7 @@ interface Exam {
   exam_date: string;
   start_date: string;
   end_date: string;
+  status?: string;
 }
 
 interface Centre {
@@ -131,6 +133,7 @@ export function CandidatesContent() {
 
   // Details modal state
   const [showDetailsModal, setShowDetailsModal] = useState(false);
+  const [showEditModal, setShowEditModal] = useState(false);
   const [selectedCandidate, setSelectedCandidate] = useState<Candidate | null>(
     null,
   );
@@ -889,17 +892,42 @@ export function CandidatesContent() {
                       </span>
                     </TableCell>
                     <TableCell className="text-right">
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        onClick={() => {
-                          setSelectedCandidate(candidate);
-                          setShowDetailsModal(true);
-                        }}
-                      >
-                        <Eye className="mr-2 h-4 w-4" />
-                        View
-                      </Button>
+                      <div className="flex justify-end gap-2">
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={() => {
+                            setSelectedCandidate(candidate);
+                            setShowDetailsModal(true);
+                          }}
+                        >
+                          <Eye className="mr-2 h-4 w-4" />
+                          View
+                        </Button>
+                        {(() => {
+                          const candidateExam = exams.find(
+                            (e) => e.id === candidate.exam_id,
+                          );
+                          const isTestingExam =
+                            candidateExam?.status === "testing" ||
+                            candidateExam?.exam_name
+                              ?.toUpperCase()
+                              .includes("TESTING");
+                          return isTestingExam ? (
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              onClick={() => {
+                                setSelectedCandidate(candidate);
+                                setShowEditModal(true);
+                              }}
+                              className="text-blue-600 hover:text-blue-700"
+                            >
+                              <Edit className="h-4 w-4" />
+                            </Button>
+                          ) : null;
+                        })()}
+                      </div>
                     </TableCell>
                   </TableRow>
                 ))}
@@ -1308,6 +1336,151 @@ export function CandidatesContent() {
               <div className="flex justify-end pt-4">
                 <Button onClick={() => setShowDetailsModal(false)}>
                   Close
+                </Button>
+              </div>
+            </div>
+          )}
+        </DialogContent>
+      </Dialog>
+
+      {/* Edit Candidate Modal */}
+      <Dialog open={showEditModal} onOpenChange={setShowEditModal}>
+        <DialogContent className="max-w-2xl">
+          <DialogHeader>
+            <DialogTitle>Edit Candidate</DialogTitle>
+            <DialogDescription>
+              Update candidate information for testing exam
+            </DialogDescription>
+          </DialogHeader>
+          {selectedCandidate && (
+            <div className="py-4">
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <label className="text-sm font-medium text-gray-700">
+                    Roll Number
+                  </label>
+                  <Input
+                    defaultValue={selectedCandidate.roll_number}
+                    disabled
+                    className="mt-1 bg-gray-50"
+                  />
+                </div>
+                <div>
+                  <label className="text-sm font-medium text-gray-700">
+                    Full Name *
+                  </label>
+                  <Input
+                    id="edit-full-name"
+                    defaultValue={selectedCandidate.full_name}
+                    className="mt-1"
+                  />
+                </div>
+                <div>
+                  <label className="text-sm font-medium text-gray-700">
+                    Father's Name
+                  </label>
+                  <Input
+                    id="edit-father-name"
+                    defaultValue={selectedCandidate.father_name || ""}
+                    className="mt-1"
+                  />
+                </div>
+                <div>
+                  <label className="text-sm font-medium text-gray-700">
+                    Email
+                  </label>
+                  <Input
+                    id="edit-email"
+                    type="email"
+                    defaultValue={selectedCandidate.email || ""}
+                    className="mt-1"
+                  />
+                </div>
+                <div>
+                  <label className="text-sm font-medium text-gray-700">
+                    Phone
+                  </label>
+                  <Input
+                    id="edit-phone"
+                    defaultValue={selectedCandidate.phone || ""}
+                    className="mt-1"
+                  />
+                </div>
+                <div>
+                  <label className="text-sm font-medium text-gray-700">
+                    Exam
+                  </label>
+                  <Input
+                    defaultValue={
+                      exams.find((e) => e.id === selectedCandidate.exam_id)
+                        ?.exam_name || ""
+                    }
+                    disabled
+                    className="mt-1 bg-gray-50"
+                  />
+                </div>
+              </div>
+
+              <div className="flex justify-end gap-2 pt-6">
+                <Button
+                  variant="outline"
+                  onClick={() => setShowEditModal(false)}
+                >
+                  Cancel
+                </Button>
+                <Button
+                  onClick={async () => {
+                    try {
+                      const fullName = (
+                        document.getElementById(
+                          "edit-full-name",
+                        ) as HTMLInputElement
+                      )?.value;
+                      const fatherName = (
+                        document.getElementById(
+                          "edit-father-name",
+                        ) as HTMLInputElement
+                      )?.value;
+                      const email = (
+                        document.getElementById(
+                          "edit-email",
+                        ) as HTMLInputElement
+                      )?.value;
+                      const phone = (
+                        document.getElementById(
+                          "edit-phone",
+                        ) as HTMLInputElement
+                      )?.value;
+
+                      if (!fullName) {
+                        alert("Full name is required");
+                        return;
+                      }
+
+                      const supabase = createClient();
+                      const { error } = await supabase
+                        .from("candidates")
+                        .update({
+                          full_name: fullName,
+                          father_name: fatherName || null,
+                          email: email || null,
+                          phone: phone || null,
+                        })
+                        .eq("id", selectedCandidate.id);
+
+                      if (error) throw error;
+
+                      alert("Candidate updated successfully");
+                      setShowEditModal(false);
+                      loadData(); // Reload data to show updates
+                    } catch (error) {
+                      console.error("Error updating candidate:", error);
+                      alert("Failed to update candidate");
+                    }
+                  }}
+                  className="bg-green-600 hover:bg-green-700"
+                >
+                  Save Changes
                 </Button>
               </div>
             </div>
