@@ -2,7 +2,6 @@
 
 import { useEffect, useState, useCallback } from "react";
 import { useRouter } from "next/navigation";
-import { createClient } from "@/lib/supabase/client";
 import { Button } from "@/components/ui/button";
 import {
   Card,
@@ -33,21 +32,24 @@ export function ViewExamContent({ examId }: { examId: string }) {
 
   const loadExam = useCallback(async () => {
     try {
-      const supabase = createClient();
-      const { data, error } = await supabase
-        .from("exams")
-        .select("*")
-        .eq("id", examId)
-        .single();
+      const response = await fetch(`/api/exams/${examId}`);
 
-      if (error) {
-        if (error.code === "PGRST116") {
-          setError("Exam not found. It may have been deleted or doesn't exist.");
+      if (!response.ok) {
+        if (response.status === 404) {
+          setError(
+            "Exam not found. It may have been deleted or doesn't exist.",
+          );
+        } else if (response.status === 401) {
+          setError(
+            "You are not authorized to view this exam. Please log in again.",
+          );
         } else {
-          throw error;
+          throw new Error(`Failed to load exam: ${response.statusText}`);
         }
         return;
       }
+
+      const data = await response.json();
       setExam(data);
     } catch (error) {
       console.error("Error loading exam:", error);
