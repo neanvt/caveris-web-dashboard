@@ -1,6 +1,8 @@
 import { AdminLayout } from "@/components/admin/layout-wrapper";
 import { ExamCentresContent } from "./centres-content";
 
+export const dynamic = 'force-dynamic';
+
 export default async function ExamCentresPage({
   params,
 }: {

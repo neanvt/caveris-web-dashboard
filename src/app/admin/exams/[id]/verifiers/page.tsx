@@ -1,6 +1,8 @@
 import { AdminLayout } from "@/components/admin/layout-wrapper";
 import { ExamVerifiersContent } from "./verifiers-content";
 
+export const dynamic = 'force-dynamic';
+
 export default async function ExamVerifiersPage({
   params,
 }: {

@@ -1,6 +1,8 @@
 import { AdminLayout } from "@/components/admin/layout-wrapper";
 import { ViewExamContent } from "./view-exam-content";
 
+export const dynamic = 'force-dynamic';
+
 export default async function ViewExamPage({
   params,
 }: {
