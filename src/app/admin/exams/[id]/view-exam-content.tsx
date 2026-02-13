@@ -11,7 +11,7 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
-import { ArrowLeft, Calendar, Edit, Loader2 } from "lucide-react";
+import { ArrowLeft, Calendar, Edit, Loader2, AlertCircle } from "lucide-react";
 import { format } from "date-fns";
 
 interface Exam {
@@ -29,6 +29,7 @@ export function ViewExamContent({ examId }: { examId: string }) {
   const router = useRouter();
   const [exam, setExam] = useState<Exam | null>(null);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
 
   const loadExam = useCallback(async () => {
     try {
@@ -39,15 +40,22 @@ export function ViewExamContent({ examId }: { examId: string }) {
         .eq("id", examId)
         .single();
 
-      if (error) throw error;
+      if (error) {
+        if (error.code === "PGRST116") {
+          setError("Exam not found. It may have been deleted or doesn't exist.");
+        } else {
+          throw error;
+        }
+        return;
+      }
       setExam(data);
     } catch (error) {
       console.error("Error loading exam:", error);
-      router.push("/admin/exams");
+      setError("Failed to load exam details. Please try again.");
     } finally {
       setLoading(false);
     }
-  }, [examId, router]);
+  }, [examId]);
 
   useEffect(() => {
     loadExam();
@@ -73,10 +81,28 @@ export function ViewExamContent({ examId }: { examId: string }) {
     );
   }
 
-  if (!exam) {
+  if (error || !exam) {
     return (
       <div className="p-6">
-        <p>Exam not found</p>
+        <Card className="max-w-2xl mx-auto">
+          <CardContent className="pt-6">
+            <div className="text-center py-12">
+              <AlertCircle className="mx-auto h-12 w-12 text-red-500 mb-4" />
+              <h3 className="text-lg font-semibold text-gray-900 mb-2">
+                {error || "Exam not found"}
+              </h3>
+              <p className="text-gray-600 mb-6">
+                {error
+                  ? "There was an issue loading this exam."
+                  : "This exam may have been deleted or doesn't exist."}
+              </p>
+              <Button onClick={() => router.push("/admin/exams")}>
+                <ArrowLeft className="mr-2 h-4 w-4" />
+                Back to Exams
+              </Button>
+            </div>
+          </CardContent>
+        </Card>
       </div>
     );
   }
