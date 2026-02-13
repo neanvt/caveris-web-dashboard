@@ -658,18 +658,18 @@ export function CandidatesContent() {
     }
   };
 
-  // Helper to get secure photo URL (use API endpoint for database photos)
+  // Helper to get secure photo URL
   const getSecurePhotoUrl = (candidate: Candidate) => {
     if (!candidate.photo_url) {
-      // No photo URL, serve from database via API
+      // Try API endpoint for database photos
       return `/api/candidates/${candidate.id}/photo`;
     }
     // Check if photo_url is insecure (http://) or points to old backend
     if (candidate.photo_url.startsWith('http://') || candidate.photo_url.includes('10.0.2.2')) {
-      // Use API endpoint instead of insecure URL
+      // Serve from database via API endpoint
       return `/api/candidates/${candidate.id}/photo`;
     }
-    // Use the existing photo_url (Supabase Storage or other HTTPS source)
+    // Use the existing secure HTTPS photo_url (Supabase Storage)
     return candidate.photo_url;
   };
 
@@ -847,36 +847,27 @@ export function CandidatesContent() {
                 {displayedCandidates.map((candidate) => (
                   <TableRow key={candidate.id}>
                     <TableCell>
-                      {candidate.photo_url ? (
-                        <img
-                          src={getSecurePhotoUrl(candidate)}
-                          alt={candidate.full_name}
-                          className="h-12 w-12 rounded-full object-cover"
-                          onError={(e) => {
-                            const target = e.currentTarget;
-                            target.onerror = null;
-                            target.style.display = "none";
-                            const parent = target.parentElement;
-                            if (
-                              parent &&
-                              !parent.querySelector(".fallback-avatar")
-                            ) {
-                              const fallback = document.createElement("div");
-                              fallback.className =
-                                "fallback-avatar h-12 w-12 rounded-full bg-gray-200 flex items-center justify-center";
-                              fallback.innerHTML = `<span class="text-gray-500 text-sm font-semibold">${candidate.full_name?.charAt(0)?.toUpperCase() || "?"}</span>`;
-                              parent.appendChild(fallback);
-                            }
-                          }}
-                        />
-                      ) : (
-                        <div className="h-12 w-12 rounded-full bg-gray-200 flex items-center justify-center">
-                          <span className="text-gray-500 text-sm font-semibold">
-                            {candidate.full_name?.charAt(0)?.toUpperCase() ||
-                              "?"}
-                          </span>
-                        </div>
-                      )}
+                      <img
+                        src={getSecurePhotoUrl(candidate)}
+                        alt={candidate.full_name}
+                        className="h-12 w-12 rounded-full object-cover"
+                        onError={(e) => {
+                          const target = e.currentTarget;
+                          target.onerror = null;
+                          target.style.display = "none";
+                          const parent = target.parentElement;
+                          if (
+                            parent &&
+                            !parent.querySelector(".fallback-avatar")
+                          ) {
+                            const fallback = document.createElement("div");
+                            fallback.className =
+                              "fallback-avatar h-12 w-12 rounded-full bg-gray-200 flex items-center justify-center";
+                            fallback.innerHTML = `<span class="text-gray-500 text-sm font-semibold">${candidate.full_name?.charAt(0)?.toUpperCase() || "?"}</span>`;
+                            parent.appendChild(fallback);
+                          }
+                        }}
+                      />
                     </TableCell>
                     <TableCell>
                       <span className="font-mono text-sm font-medium">
@@ -1483,16 +1474,24 @@ export function CandidatesContent() {
                           <X className="h-4 w-4" />
                         </button>
                       </div>
-                    ) : selectedCandidate.photo_url ? (
+                    ) : (
                       <img
                         src={getSecurePhotoUrl(selectedCandidate)}
                         alt="Current photo"
                         className="w-32 h-32 object-cover rounded-lg border-2 border-gray-300"
+                        onError={(e) => {
+                          const target = e.currentTarget;
+                          target.onerror = null;
+                          target.style.display = "none";
+                          const parent = target.parentElement;
+                          if (parent && !parent.querySelector(".fallback-avatar-large")) {
+                            const fallback = document.createElement("div");
+                            fallback.className = "fallback-avatar-large w-32 h-32 bg-gray-100 rounded-lg border-2 border-dashed border-gray-300 flex items-center justify-center";
+                            fallback.innerHTML = `<svg class="h-8 w-8 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z"></path></svg>`;
+                            parent.appendChild(fallback);
+                          }
+                        }}
                       />
-                    ) : (
-                      <div className="w-32 h-32 bg-gray-100 rounded-lg border-2 border-dashed border-gray-300 flex items-center justify-center">
-                        <Upload className="h-8 w-8 text-gray-400" />
-                      </div>
                     )}
                   </div>
 
