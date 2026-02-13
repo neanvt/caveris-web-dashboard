@@ -147,7 +147,8 @@ class FaceNetService {
       };
     } catch (error) {
       console.error("❌ Failed to generate embedding:", error);
-      throw new Error(`Face embedding generation failed: ${error.message}`);
+      const message = error instanceof Error ? error.message : "Unknown error";
+      throw new Error(`Face embedding generation failed: ${message}`);
     }
   }
 
