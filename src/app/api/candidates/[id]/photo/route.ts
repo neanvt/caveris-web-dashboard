@@ -190,7 +190,13 @@ export async function GET(
       .eq("id", candidateId)
       .single();
 
+    console.log("📸 GET photo request for candidate:", candidateId);
+    console.log("Data found:", !!data);
+    console.log("Has photo_data:", !!data?.photo_data);
+    console.log("photo_data type:", typeof data?.photo_data);
+
     if (error || !data) {
+      console.error("❌ Candidate not found:", error);
       return NextResponse.json(
         { error: "Candidate not found" },
         { status: 404 },
@@ -205,19 +211,38 @@ export async function GET(
         photoUrl: data.photo_url || `/api/candidates/${candidateId}/photo`,
         hasEmbedding: !!data.face_embedding,
         embeddingDimensions: data.face_embedding?.length || 0,
+        hasPhotoData: !!data.photo_data,
       });
     }
 
     // Otherwise, return the actual image data
     if (!data.photo_data) {
+      console.warn("⚠️ No photo_data found for candidate:", candidateId);
       return NextResponse.json(
         { error: "No photo available for this candidate" },
         { status: 404 },
       );
     }
 
+    console.log("✅ Returning photo data for:", data.full_name);
+
+    // Convert photo_data to Buffer if needed
+    let photoBuffer: Buffer;
+    if (Buffer.isBuffer(data.photo_data)) {
+      photoBuffer = data.photo_data;
+    } else if (typeof data.photo_data === 'string') {
+      // If it's a hex string or base64, convert it
+      photoBuffer = Buffer.from(data.photo_data, 'base64');
+    } else {
+      console.error("❌ Unexpected photo_data type:", typeof data.photo_data);
+      return NextResponse.json(
+        { error: "Invalid photo data format" },
+        { status: 500 },
+      );
+    }
+
     // Return image data as JPEG
-    return new NextResponse(data.photo_data, {
+    return new NextResponse(photoBuffer as unknown as BodyInit, {
       headers: {
         "Content-Type": "image/jpeg",
         "Cache-Control": "public, max-age=31536000, immutable",
