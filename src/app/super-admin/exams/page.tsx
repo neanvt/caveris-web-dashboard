@@ -2,6 +2,8 @@ import { SuperAdminLayout } from "@/components/super-admin/layout-wrapper";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { FileText, Download } from "lucide-react";
 
+export const dynamic = 'force-dynamic';
+
 export default async function ExamsPage() {
   return (
     <SuperAdminLayout>
