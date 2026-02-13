@@ -2,18 +2,18 @@
  * Candidate Photo Upload Component with Face Embedding Generation
  * Generates 128-dimensional FaceNet embeddings on the client side
  * Same model and preprocessing as mobile app for consistency
- * 
+ *
  * Copyright (c) 2026 Neanv. All rights reserved.
  */
 
-'use client';
+"use client";
 
-import { useState, useRef } from 'react';
-import { faceNetService } from '@/lib/facenet-service';
-import { Button } from '@/components/ui/button';
-import { Progress } from '@/components/ui/progress';
-import { Upload, Camera, Loader2, CheckCircle, XCircle } from 'lucide-react';
-import { useToast } from '@/hooks/use-toast';
+import { useState, useRef } from "react";
+import { faceNetService } from "@/lib/facenet-service";
+import { Button } from "@/components/ui/button";
+import { Progress } from "@/components/ui/progress";
+import { Upload, Camera, Loader2, CheckCircle, XCircle } from "lucide-react";
+import { useToast } from "@/hooks/use-toast";
 
 export interface PhotoUploadResult {
   photoBase64: string;
@@ -30,7 +30,13 @@ interface CandidatePhotoUploadProps {
   onUploadError?: (error: Error) => void;
 }
 
-type UploadState = 'idle' | 'loading-model' | 'processing' | 'uploading' | 'success' | 'error';
+type UploadState =
+  | "idle"
+  | "loading-model"
+  | "processing"
+  | "uploading"
+  | "success"
+  | "error";
 
 export function CandidatePhotoUpload({
   candidateId,
@@ -39,24 +45,28 @@ export function CandidatePhotoUpload({
   onUploadSuccess,
   onUploadError,
 }: CandidatePhotoUploadProps) {
-  const [state, setState] = useState<UploadState>('idle');
+  const [state, setState] = useState<UploadState>("idle");
   const [progress, setProgress] = useState(0);
-  const [previewUrl, setPreviewUrl] = useState<string | null>(existingPhotoUrl || null);
+  const [previewUrl, setPreviewUrl] = useState<string | null>(
+    existingPhotoUrl || null,
+  );
   const [embedding, setEmbedding] = useState<Float32Array | null>(null);
   const [processingTime, setProcessingTime] = useState<number>(0);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const { toast } = useToast();
 
-  const handleFileSelect = async (event: React.ChangeEvent<HTMLInputElement>) => {
+  const handleFileSelect = async (
+    event: React.ChangeEvent<HTMLInputElement>,
+  ) => {
     const file = event.target.files?.[0];
     if (!file) return;
 
     // Validate file type
-    if (!file.type.startsWith('image/')) {
+    if (!file.type.startsWith("image/")) {
       toast({
-        title: 'Invalid file',
-        description: 'Please select an image file (JPG, PNG)',
-        variant: 'destructive',
+        title: "Invalid file",
+        description: "Please select an image file (JPG, PNG)",
+        variant: "destructive",
       });
       return;
     }
@@ -64,9 +74,9 @@ export function CandidatePhotoUpload({
     // Validate file size (max 10MB)
     if (file.size > 10 * 1024 * 1024) {
       toast({
-        title: 'File too large',
-        description: 'Please select an image smaller than 10MB',
-        variant: 'destructive',
+        title: "File too large",
+        description: "Please select an image smaller than 10MB",
+        variant: "destructive",
       });
       return;
     }
@@ -80,23 +90,23 @@ export function CandidatePhotoUpload({
       reader.readAsDataURL(file);
 
       // Step 1: Load model if needed
-      setState('loading-model');
+      setState("loading-model");
       setProgress(0);
-      
+
       if (!faceNetService.isReady()) {
         toast({
-          title: 'Loading face recognition model',
-          description: 'First-time download (~23 MB), cached for future use',
+          title: "Loading face recognition model",
+          description: "First-time download (~23 MB), cached for future use",
         });
-        
+
         await faceNetService.loadModel((p) => setProgress(p));
       }
 
       // Step 2: Generate embedding
-      setState('processing');
+      setState("processing");
       toast({
-        title: 'Processing photo',
-        description: 'Generating face embedding...',
+        title: "Processing photo",
+        description: "Generating face embedding...",
       });
 
       const startTime = performance.now();
@@ -107,29 +117,28 @@ export function CandidatePhotoUpload({
       setProcessingTime(totalTime);
       setProgress(100);
 
-      console.log('✅ Face embedding generated:', {
+      console.log("✅ Face embedding generated:", {
         dimensions: result.dimensions,
         processingTime: result.processingTime,
         range: [Math.min(...result.embedding), Math.max(...result.embedding)],
       });
 
       // Step 3: Upload to backend
-      setState('uploading');
+      setState("uploading");
       await uploadPhotoWithEmbedding(file, result.embedding);
 
-      setState('success');
+      setState("success");
       toast({
-        title: 'Photo uploaded successfully',
+        title: "Photo uploaded successfully",
         description: `Face embedding generated (128 dims) in ${totalTime}ms`,
       });
-
     } catch (error) {
-      console.error('❌ Photo upload failed:', error);
-      setState('error');
+      console.error("❌ Photo upload failed:", error);
+      setState("error");
       toast({
-        title: 'Upload failed',
-        description: error instanceof Error ? error.message : 'Unknown error',
-        variant: 'destructive',
+        title: "Upload failed",
+        description: error instanceof Error ? error.message : "Unknown error",
+        variant: "destructive",
       });
       onUploadError?.(error as Error);
     }
@@ -137,13 +146,13 @@ export function CandidatePhotoUpload({
 
   const uploadPhotoWithEmbedding = async (
     file: File,
-    faceEmbedding: Float32Array
+    faceEmbedding: Float32Array,
   ): Promise<void> => {
     // Convert file to base64
     const base64 = await new Promise<string>((resolve, reject) => {
       const reader = new FileReader();
       reader.onload = () => {
-        const base64String = (reader.result as string).split(',')[1];
+        const base64String = (reader.result as string).split(",")[1];
         resolve(base64String);
       };
       reader.onerror = reject;
@@ -152,9 +161,9 @@ export function CandidatePhotoUpload({
 
     // Upload to backend API
     const response = await fetch(`/api/candidates/${candidateId}/photo`, {
-      method: 'POST',
+      method: "POST",
       headers: {
-        'Content-Type': 'application/json',
+        "Content-Type": "application/json",
       },
       body: JSON.stringify({
         photoBase64: base64,
@@ -164,11 +173,11 @@ export function CandidatePhotoUpload({
 
     if (!response.ok) {
       const error = await response.json();
-      throw new Error(error.message || 'Upload failed');
+      throw new Error(error.message || "Upload failed");
     }
 
     const data = await response.json();
-    
+
     onUploadSuccess?.({
       photoBase64: base64,
       faceEmbedding: Array.from(faceEmbedding),
@@ -183,13 +192,13 @@ export function CandidatePhotoUpload({
 
   const getStatusIcon = () => {
     switch (state) {
-      case 'loading-model':
-      case 'processing':
-      case 'uploading':
+      case "loading-model":
+      case "processing":
+      case "uploading":
         return <Loader2 className="h-4 w-4 animate-spin" />;
-      case 'success':
+      case "success":
         return <CheckCircle className="h-4 w-4 text-green-600" />;
-      case 'error':
+      case "error":
         return <XCircle className="h-4 w-4 text-red-600" />;
       default:
         return <Upload className="h-4 w-4" />;
@@ -198,22 +207,24 @@ export function CandidatePhotoUpload({
 
   const getStatusText = () => {
     switch (state) {
-      case 'loading-model':
-        return 'Loading model...';
-      case 'processing':
-        return 'Processing photo...';
-      case 'uploading':
-        return 'Uploading...';
-      case 'success':
-        return 'Uploaded successfully';
-      case 'error':
-        return 'Upload failed';
+      case "loading-model":
+        return "Loading model...";
+      case "processing":
+        return "Processing photo...";
+      case "uploading":
+        return "Uploading...";
+      case "success":
+        return "Uploaded successfully";
+      case "error":
+        return "Upload failed";
       default:
-        return 'Upload photo';
+        return "Upload photo";
     }
   };
 
-  const isProcessing = ['loading-model', 'processing', 'uploading'].includes(state);
+  const isProcessing = ["loading-model", "processing", "uploading"].includes(
+    state,
+  );
 
   return (
     <div className="space-y-4">
@@ -226,11 +237,11 @@ export function CandidatePhotoUpload({
             onChange={handleFileSelect}
             className="hidden"
           />
-          
+
           <Button
             onClick={handleButtonClick}
             disabled={isProcessing}
-            variant={state === 'success' ? 'outline' : 'default'}
+            variant={state === "success" ? "outline" : "default"}
             className="w-full"
           >
             {getStatusIcon()}
@@ -244,9 +255,9 @@ export function CandidatePhotoUpload({
         <div className="space-y-2">
           <Progress value={progress} className="w-full" />
           <p className="text-sm text-muted-foreground text-center">
-            {state === 'loading-model' && `Loading model: ${progress}%`}
-            {state === 'processing' && 'Generating face embedding...'}
-            {state === 'uploading' && 'Uploading to server...'}
+            {state === "loading-model" && `Loading model: ${progress}%`}
+            {state === "processing" && "Generating face embedding..."}
+            {state === "uploading" && "Uploading to server..."}
           </p>
         </div>
       )}
@@ -263,7 +274,7 @@ export function CandidatePhotoUpload({
       )}
 
       {/* Embedding info */}
-      {embedding && state === 'success' && (
+      {embedding && state === "success" && (
         <div className="p-3 bg-green-50 dark:bg-green-900/20 rounded-lg border border-green-200 dark:border-green-800">
           <div className="flex items-start gap-2">
             <CheckCircle className="h-5 w-5 text-green-600 mt-0.5" />
@@ -275,7 +286,7 @@ export function CandidatePhotoUpload({
                 <li>• Dimensions: {embedding.length}</li>
                 <li>• Processing time: {processingTime}ms</li>
                 <li>
-                  • Range: [{Math.min(...embedding).toFixed(3)},{' '}
+                  • Range: [{Math.min(...embedding).toFixed(3)},{" "}
                   {Math.max(...embedding).toFixed(3)}]
                 </li>
                 <li>• Compatible with mobile app verification</li>
@@ -286,7 +297,7 @@ export function CandidatePhotoUpload({
       )}
 
       {/* Model info */}
-      {faceNetService.isReady() && state === 'idle' && (
+      {faceNetService.isReady() && state === "idle" && (
         <div className="text-xs text-muted-foreground">
           <p>✅ Face recognition model loaded</p>
           <p>📊 FaceNet (160x160 → 128 dims)</p>

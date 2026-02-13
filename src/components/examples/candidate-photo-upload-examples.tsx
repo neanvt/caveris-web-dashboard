@@ -1,15 +1,18 @@
 /**
  * Example: Integrating CandidatePhotoUpload into Candidate Management
  * This shows how to add face embedding generation to your existing candidate pages
- * 
+ *
  * Copyright (c) 2026 Neanv. All rights reserved.
  */
 
-'use client';
+"use client";
 
-import { useState } from 'react';
-import { CandidatePhotoUpload, PhotoUploadResult } from '@/components/candidate-photo-upload';
-import { Button } from '@/components/ui/button';
+import { useState } from "react";
+import {
+  CandidatePhotoUpload,
+  PhotoUploadResult,
+} from "@/components/candidate-photo-upload";
+import { Button } from "@/components/ui/button";
 import {
   Dialog,
   DialogContent,
@@ -17,8 +20,8 @@ import {
   DialogHeader,
   DialogTitle,
   DialogTrigger,
-} from '@/components/ui/dialog';
-import { Camera } from 'lucide-react';
+} from "@/components/ui/dialog";
+import { Camera } from "lucide-react";
 
 interface Candidate {
   id: string;
@@ -29,37 +32,43 @@ interface Candidate {
 
 export function CandidatePhotoUploadExample() {
   const [isOpen, setIsOpen] = useState(false);
-  const [selectedCandidate, setSelectedCandidate] = useState<Candidate | null>(null);
-  
+  const [selectedCandidate, setSelectedCandidate] = useState<Candidate | null>(
+    null,
+  );
+
   // Example candidate data
   const candidate: Candidate = {
-    id: '123e4567-e89b-12d3-a456-426614174000',
-    full_name: 'John Doe',
+    id: "123e4567-e89b-12d3-a456-426614174000",
+    full_name: "John Doe",
     photo_url: undefined,
   };
 
   const handlePhotoUploadSuccess = (result: PhotoUploadResult) => {
-    console.log('✅ Photo uploaded successfully!');
-    console.log('Photo URL:', result.photoUrl);
-    console.log('Embedding dimensions:', result.faceEmbedding.length);
-    console.log('Processing time:', result.processingTime, 'ms');
-    
+    console.log("✅ Photo uploaded successfully!");
+    console.log("Photo URL:", result.photoUrl);
+    console.log("Embedding dimensions:", result.faceEmbedding.length);
+    console.log("Processing time:", result.processingTime, "ms");
+
     // Update candidate in state/database
-    setSelectedCandidate((prev) => prev ? {
-      ...prev,
-      photo_url: result.photoUrl,
-      face_embedding: result.faceEmbedding,
-    } : null);
-    
+    setSelectedCandidate((prev) =>
+      prev
+        ? {
+            ...prev,
+            photo_url: result.photoUrl,
+            face_embedding: result.faceEmbedding,
+          }
+        : null,
+    );
+
     // Close dialog
     setIsOpen(false);
-    
+
     // Show success message
-    alert('Photo and face embedding saved successfully!');
+    alert("Photo and face embedding saved successfully!");
   };
 
   const handlePhotoUploadError = (error: Error) => {
-    console.error('❌ Upload failed:', error);
+    console.error("❌ Upload failed:", error);
     alert(`Upload failed: ${error.message}`);
   };
 
@@ -82,7 +91,7 @@ export function CandidatePhotoUploadExample() {
                 Photo will be processed locally in your browser.
               </DialogDescription>
             </DialogHeader>
-            
+
             {selectedCandidate && (
               <CandidatePhotoUpload
                 candidateId={selectedCandidate.id}
@@ -107,7 +116,8 @@ export function CandidatePhotoUploadExample() {
           {candidate.face_embedding && (
             <div className="p-3 bg-green-50 dark:bg-green-900/20 border-t">
               <p className="text-sm text-green-900 dark:text-green-100">
-                ✅ Face embedding available ({candidate.face_embedding.length} dimensions)
+                ✅ Face embedding available ({candidate.face_embedding.length}{" "}
+                dimensions)
               </p>
             </div>
           )}
@@ -122,23 +132,23 @@ export function CandidatePhotoUploadExample() {
  */
 export function InlinePhotoUploadExample() {
   const candidate: Candidate = {
-    id: '123e4567-e89b-12d3-a456-426614174000',
-    full_name: 'Jane Smith',
+    id: "123e4567-e89b-12d3-a456-426614174000",
+    full_name: "Jane Smith",
   };
 
   return (
     <div className="max-w-md mx-auto p-6 border rounded-lg">
       <h3 className="text-lg font-semibold mb-4">Upload Photo</h3>
-      
+
       <CandidatePhotoUpload
         candidateId={candidate.id}
         candidateName={candidate.full_name}
         onUploadSuccess={(result) => {
-          console.log('Upload success:', result);
+          console.log("Upload success:", result);
           // Refresh candidate data, update UI, etc.
         }}
         onUploadError={(error) => {
-          console.error('Upload error:', error);
+          console.error("Upload error:", error);
         }}
       />
     </div>
@@ -151,14 +161,14 @@ export function InlinePhotoUploadExample() {
 export function CandidateTableWithUpload() {
   const candidates: Candidate[] = [
     {
-      id: '1',
-      full_name: 'John Doe',
-      photo_url: 'https://example.com/photo1.jpg',
+      id: "1",
+      full_name: "John Doe",
+      photo_url: "https://example.com/photo1.jpg",
       face_embedding: new Array(128).fill(0),
     },
     {
-      id: '2',
-      full_name: 'Jane Smith',
+      id: "2",
+      full_name: "Jane Smith",
       photo_url: undefined,
       face_embedding: undefined,
     },
@@ -207,13 +217,13 @@ export function CandidateTableWithUpload() {
                     onClick={() => setUploadingId(candidate.id)}
                   >
                     <Camera className="h-3 w-3 mr-1" />
-                    {candidate.photo_url ? 'Update' : 'Upload'}
+                    {candidate.photo_url ? "Update" : "Upload"}
                   </Button>
                 </DialogTrigger>
                 <DialogContent>
                   <DialogHeader>
                     <DialogTitle>
-                      {candidate.photo_url ? 'Update' : 'Upload'} Photo
+                      {candidate.photo_url ? "Update" : "Upload"} Photo
                     </DialogTitle>
                   </DialogHeader>
                   <CandidatePhotoUpload

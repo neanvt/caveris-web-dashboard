@@ -2,13 +2,13 @@
  * FaceNet Service for Web Dashboard
  * Generates 128-dimensional face embeddings using TensorFlow.js
  * Same model and preprocessing as mobile app for consistent results
- * 
+ *
  * Copyright (c) 2026 Neanv. All rights reserved.
  */
 
-'use client';
+"use client";
 
-import * as tf from '@tensorflow/tfjs';
+import * as tf from "@tensorflow/tfjs";
 
 export interface FaceEmbedding {
   embedding: Float32Array;
@@ -30,7 +30,7 @@ class FaceNetService {
   private loadPromise: Promise<void> | null = null;
 
   // Model configuration - matches mobile app
-  private readonly MODEL_PATH = '/models/facenet/model.json';
+  private readonly MODEL_PATH = "/models/facenet/model.json";
   private readonly INPUT_SIZE = 160; // FaceNet input: 160x160
   private readonly EMBEDDING_SIZE = 128; // FaceNet output: 128 dims
   private readonly IMAGE_MEAN = 127.5; // Normalization mean
@@ -57,13 +57,13 @@ class FaceNetService {
   }
 
   private async _loadModelInternal(
-    onProgress?: (progress: number) => void
+    onProgress?: (progress: number) => void,
   ): Promise<void> {
     try {
-      console.log('🚀 Loading FaceNet model from:', this.MODEL_PATH);
+      console.log("🚀 Loading FaceNet model from:", this.MODEL_PATH);
 
       // Set backend to WebGL for GPU acceleration
-      await tf.setBackend('webgl');
+      await tf.setBackend("webgl");
       await tf.ready();
 
       // Load model with progress tracking
@@ -76,18 +76,18 @@ class FaceNetService {
       });
 
       this.isLoaded = true;
-      console.log('✅ FaceNet model loaded successfully');
+      console.log("✅ FaceNet model loaded successfully");
       console.log(
         `   Backend: ${tf.getBackend()}, Memory: ${JSON.stringify(
-          tf.memory()
-        )}`
+          tf.memory(),
+        )}`,
       );
     } catch (error) {
       this.isLoaded = false;
       this.isLoading = false;
-      console.error('❌ Failed to load FaceNet model:', error);
+      console.error("❌ Failed to load FaceNet model:", error);
       throw new Error(
-        'Failed to load face recognition model. Please ensure model files are available.'
+        "Failed to load face recognition model. Please ensure model files are available.",
       );
     }
   }
@@ -95,9 +95,7 @@ class FaceNetService {
   /**
    * Generate face embedding from image File or base64
    */
-  async generateEmbedding(
-    imageInput: File | string
-  ): Promise<FaceEmbedding> {
+  async generateEmbedding(imageInput: File | string): Promise<FaceEmbedding> {
     const startTime = performance.now();
 
     // Ensure model is loaded
@@ -106,7 +104,7 @@ class FaceNetService {
     }
 
     if (!this.model) {
-      throw new Error('Model not loaded');
+      throw new Error("Model not loaded");
     }
 
     try {
@@ -123,7 +121,7 @@ class FaceNetService {
       // Validate embedding
       if (embedding.length !== this.EMBEDDING_SIZE) {
         throw new Error(
-          `Invalid embedding size: expected ${this.EMBEDDING_SIZE}, got ${embedding.length}`
+          `Invalid embedding size: expected ${this.EMBEDDING_SIZE}, got ${embedding.length}`,
         );
       }
 
@@ -134,12 +132,12 @@ class FaceNetService {
       const processingTime = Math.round(performance.now() - startTime);
 
       console.log(
-        `✅ Embedding generated: ${embedding.length} dims in ${processingTime}ms`
+        `✅ Embedding generated: ${embedding.length} dims in ${processingTime}ms`,
       );
       console.log(
         `   Range: [${Math.min(...embedding).toFixed(3)}, ${Math.max(
-          ...embedding
-        ).toFixed(3)}]`
+          ...embedding,
+        ).toFixed(3)}]`,
       );
 
       return {
@@ -148,7 +146,7 @@ class FaceNetService {
         processingTime,
       };
     } catch (error) {
-      console.error('❌ Failed to generate embedding:', error);
+      console.error("❌ Failed to generate embedding:", error);
       throw new Error(`Face embedding generation failed: ${error.message}`);
     }
   }
@@ -158,9 +156,7 @@ class FaceNetService {
    * - Resize to 160x160
    * - Normalize to [-1, 1] using (pixel - 127.5) / 128.0
    */
-  private async preprocessImage(
-    imageInput: File | string
-  ): Promise<tf.Tensor> {
+  private async preprocessImage(imageInput: File | string): Promise<tf.Tensor> {
     return new Promise((resolve, reject) => {
       const img = new Image();
 
@@ -187,13 +183,13 @@ class FaceNetService {
       };
 
       img.onerror = () => {
-        reject(new Error('Failed to load image'));
+        reject(new Error("Failed to load image"));
       };
 
       // Load image from File or base64
-      if (typeof imageInput === 'string') {
+      if (typeof imageInput === "string") {
         // Base64 string
-        img.src = imageInput.startsWith('data:')
+        img.src = imageInput.startsWith("data:")
           ? imageInput
           : `data:image/jpeg;base64,${imageInput}`;
       } else {
@@ -202,7 +198,7 @@ class FaceNetService {
         reader.onload = (e) => {
           img.src = e.target?.result as string;
         };
-        reader.onerror = () => reject(new Error('Failed to read file'));
+        reader.onerror = () => reject(new Error("Failed to read file"));
         reader.readAsDataURL(imageInput);
       }
     });
@@ -212,12 +208,9 @@ class FaceNetService {
    * Compare two embeddings using cosine similarity
    * Returns similarity score (0-1, higher = more similar)
    */
-  cosineSimilarity(
-    embedding1: Float32Array,
-    embedding2: Float32Array
-  ): number {
+  cosineSimilarity(embedding1: Float32Array, embedding2: Float32Array): number {
     if (embedding1.length !== embedding2.length) {
-      throw new Error('Embeddings must have same dimensions');
+      throw new Error("Embeddings must have same dimensions");
     }
 
     let dotProduct = 0;
@@ -245,7 +238,7 @@ class FaceNetService {
    */
   async verifyFaces(
     image1: File | string,
-    image2: File | string
+    image2: File | string,
   ): Promise<FaceVerificationResult> {
     const [result1, result2] = await Promise.all([
       this.generateEmbedding(image1),
@@ -254,7 +247,7 @@ class FaceNetService {
 
     const similarity = this.cosineSimilarity(
       result1.embedding,
-      result2.embedding
+      result2.embedding,
     );
 
     const isMatch = similarity >= this.SIMILARITY_THRESHOLD;
@@ -298,7 +291,7 @@ class FaceNetService {
       this.model = null;
     }
     this.isLoaded = false;
-    console.log('🧹 FaceNet model disposed');
+    console.log("🧹 FaceNet model disposed");
   }
 }
 

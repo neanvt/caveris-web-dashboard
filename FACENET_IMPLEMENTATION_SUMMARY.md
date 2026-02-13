@@ -7,32 +7,29 @@ Your Next.js web dashboard now has the **same FaceNet face embedding generation*
 ### Files Created
 
 **Core Services:**
+
 1. ✅ `/src/lib/facenet-service.ts` - TensorFlow.js FaceNet service
    - Loads FaceNet model in browser
    - Generates 128-dimensional embeddings
+
 - Matches mobile app preprocessing exactly
 
-**UI Components:**
-2. ✅ `/src/components/ui/progress.tsx` - Progress bar component
-3. ✅ `/src/components/candidate-photo-upload.tsx` - Photo upload with embedding generation
-   - Drag & drop support
-   - Real-time progress
-   - Preview and validation
-   - Automatic embedding generation
+**UI Components:** 2. ✅ `/src/components/ui/progress.tsx` - Progress bar component 3. ✅ `/src/components/candidate-photo-upload.tsx` - Photo upload with embedding generation
 
-**API Routes:**
-4. ✅ `/src/app/api/candidates/[id]/photo/route.ts` - Upload endpoint
-   - Accepts photo + embedding
-   - Stores in Supabase Storage
-   - Saves to PostgreSQL database
+- Drag & drop support
+- Real-time progress
+- Preview and validation
+- Automatic embedding generation
 
-**Scripts & Docs:**
-5. ✅ `/scripts/convert_facenet_to_tfjs.py` - Model conversion script
-6. ✅ `/scripts/setup-facenet-model.sh` - Automated setup script
-7. ✅ `/FACENET_INTEGRATION.md` - Complete documentation
+**API Routes:** 4. ✅ `/src/app/api/candidates/[id]/photo/route.ts` - Upload endpoint
 
-**Dependencies:**
-8. ✅ Installed: `@tensorflow/tfjs`, `@tensorflow/tfjs-converter`, `@radix-ui/react-progress`
+- Accepts photo + embedding
+- Stores in Supabase Storage
+- Saves to PostgreSQL database
+
+**Scripts & Docs:** 5. ✅ `/scripts/convert_facenet_to_tfjs.py` - Model conversion script 6. ✅ `/scripts/setup-facenet-model.sh` - Automated setup script 7. ✅ `/FACENET_INTEGRATION.md` - Complete documentation
+
+**Dependencies:** 8. ✅ Installed: `@tensorflow/tfjs`, `@tensorflow/tfjs-converter`, `@radix-ui/react-progress`
 
 ## Architecture
 
@@ -52,12 +49,14 @@ Web Upload Flow:
 ### Step 1: Convert Model (One-Time Setup)
 
 **Option A: Using Python 3.11 (Recommended)**
+
 ```bash
 cd caveris-web-dashboard
 ./scripts/setup-facenet-model.sh
 ```
 
 **Option B: Manual with Docker**
+
 ```bash
 cd caveris-web-dashboard
 docker run -it --rm -v $(pwd):/app -w /app python:3.11-slim bash
@@ -72,23 +71,27 @@ This will create: `public/models/facenet/model.json` + shard files (~23 MB)
 ### Step 2: Test the Integration
 
 **Start the dev server:**
+
 ```bash
 cd caveris-web-dashboard
 npm run dev
 ```
 
 **Test upload:**
+
 1. Navigate to a candidate page
 2. Import the upload component:
+
    ```tsx
-   import { CandidatePhotoUpload } from '@/components/candidate-photo-upload';
-   
+   import { CandidatePhotoUpload } from "@/components/candidate-photo-upload";
+
    <CandidatePhotoUpload
      candidateId={candidate.id}
      candidateName={candidate.full_name}
-     onUploadSuccess={(result) => console.log('Success:', result)}
-   />
+     onUploadSuccess={(result) => console.log("Success:", result)}
+   />;
    ```
+
 3. Upload a photo
 4. First upload: Model loads (~2-4 seconds)
 5. Subsequent uploads: Fast (~1-2 seconds)
@@ -99,7 +102,7 @@ Add the upload component to your candidate management pages:
 
 ```tsx
 // Example: In /src/app/admin/candidates/candidates-content.tsx
-import { CandidatePhotoUpload } from '@/components/candidate-photo-upload';
+import { CandidatePhotoUpload } from "@/components/candidate-photo-upload";
 
 // Add to your edit/create candidate dialog:
 <Dialog>
@@ -112,22 +115,24 @@ import { CandidatePhotoUpload } from '@/components/candidate-photo-upload';
       onUploadSuccess={handlePhotoUploadSuccess}
     />
   </DialogContent>
-</Dialog>
+</Dialog>;
 ```
 
 ## Compatibility with Mobile App
 
 ### ✅ Identical Processing
-| Aspect | Mobile (TFLite) | Web (TensorFlow.js) |
-|--------|----------------|---------------------|
-| **Model** | FaceNet | FaceNet (same architecture) |
-| **Input** | 160x160 RGB | 160x160 RGB |
-| **Normalization** | (pixel - 127.5) / 128.0 | (pixel - 127.5) / 128.0 |
-| **Output** | 128 floats | 128 floats |
-| **Comparison** | Cosine similarity | Cosine similarity |
-| **Threshold** | 0.6 (60%) | 0.6 (60%) |
+
+| Aspect            | Mobile (TFLite)         | Web (TensorFlow.js)         |
+| ----------------- | ----------------------- | --------------------------- |
+| **Model**         | FaceNet                 | FaceNet (same architecture) |
+| **Input**         | 160x160 RGB             | 160x160 RGB                 |
+| **Normalization** | (pixel - 127.5) / 128.0 | (pixel - 127.5) / 128.0     |
+| **Output**        | 128 floats              | 128 floats                  |
+| **Comparison**    | Cosine similarity       | Cosine similarity           |
+| **Threshold**     | 0.6 (60%)               | 0.6 (60%)                   |
 
 ### Result
+
 Embeddings from web and mobile are **directly comparable** for verification! 🎯
 
 ## Database Schema
@@ -156,7 +161,7 @@ CREATE TABLE candidates (
 ✅ **Progress Tracking** - Real-time feedback during processing  
 ✅ **Preview Support** - See photo before upload  
 ✅ **Validation** - Checks file type, size, and embedding quality  
-✅ **Mobile Compatible** - Same embeddings as mobile app  
+✅ **Mobile Compatible** - Same embeddings as mobile app
 
 ## API Usage
 
@@ -180,25 +185,28 @@ curl http://localhost:3000/api/candidates/YOUR_ID/photo
 ## Troubleshooting
 
 ### Model Not Loading?
+
 Check: `public/models/facenet/model.json` exists  
 Solution: Run `./scripts/setup-facenet-model.sh`
 
 ### Slow Performance?
+
 Check: Browser using GPU (console: `tf.getBackend()` should be 'webgl')  
 Solution: Enable hardware acceleration in browser settings
 
 ### Python 3.13 Issues?
+
 Problem: tensorflowjs not compatible with Python 3.13  
 Solution: Use Python 3.11 or Docker with Python 3.11 image
 
 ## Performance
 
-| Metric | Value |
-|--------|-------|
-| Model download | ~23 MB (one-time) |
-| First load | 2-4 seconds |
-| Subsequent processing | 1-2 seconds |
-| Memory usage | ~100 MB |
+| Metric                | Value                               |
+| --------------------- | ----------------------------------- |
+| Model download        | ~23 MB (one-time)                   |
+| First load            | 2-4 seconds                         |
+| Subsequent processing | 1-2 seconds                         |
+| Memory usage          | ~100 MB                             |
 | Browser compatibility | Chrome 90+, Firefox 88+, Safari 14+ |
 
 ## Next Steps

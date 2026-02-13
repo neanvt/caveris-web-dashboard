@@ -2,20 +2,20 @@
  * API Route: Upload Candidate Photo with Face Embedding
  * Stores photo and 128-dimensional FaceNet embedding in database
  * Compatible with mobile app's local verification
- * 
+ *
  * Copyright (c) 2026 Neanv. All rights reserved.
  */
 
-import { NextRequest, NextResponse } from 'next/server';
-import { createClient } from '@/lib/supabase/server';
+import { NextRequest, NextResponse } from "next/server";
+import { createClient } from "@/lib/supabase/server";
 
 export async function POST(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: { id: string } },
 ) {
   try {
     const candidateId = params.id;
-    
+
     // Parse request body
     const body = await request.json();
     const { photoBase64, faceEmbedding } = body;
@@ -23,16 +23,19 @@ export async function POST(
     // Validate input
     if (!photoBase64) {
       return NextResponse.json(
-        { error: 'Photo data is required' },
-        { status: 400 }
+        { error: "Photo data is required" },
+        { status: 400 },
       );
     }
 
     // Validate embedding if provided
-    if (faceEmbedding && (!Array.isArray(faceEmbedding) || faceEmbedding.length !== 128)) {
+    if (
+      faceEmbedding &&
+      (!Array.isArray(faceEmbedding) || faceEmbedding.length !== 128)
+    ) {
       return NextResponse.json(
-        { error: 'Face embedding must be an array of 128 numbers' },
-        { status: 400 }
+        { error: "Face embedding must be an array of 128 numbers" },
+        { status: 400 },
       );
     }
 
@@ -41,20 +44,20 @@ export async function POST(
 
     // Verify candidate exists
     const { data: candidate, error: candidateError } = await supabase
-      .from('candidates')
-      .select('id, full_name')
-      .eq('id', candidateId)
+      .from("candidates")
+      .select("id, full_name")
+      .eq("id", candidateId)
       .single();
 
     if (candidateError || !candidate) {
       return NextResponse.json(
-        { error: 'Candidate not found' },
-        { status: 404 }
+        { error: "Candidate not found" },
+        { status: 404 },
       );
     }
 
     // Convert base64 to buffer
-    const photoBuffer = Buffer.from(photoBase64, 'base64');
+    const photoBuffer = Buffer.from(photoBase64, "base64");
 
     // Generate filename
     const timestamp = Date.now();
@@ -63,23 +66,23 @@ export async function POST(
 
     // Upload photo to Supabase Storage
     const { data: uploadData, error: uploadError } = await supabase.storage
-      .from('candidate-photos')
+      .from("candidate-photos")
       .upload(storagePath, photoBuffer, {
-        contentType: 'image/jpeg',
+        contentType: "image/jpeg",
         upsert: true,
       });
 
     if (uploadError) {
-      console.error('Storage upload error:', uploadError);
+      console.error("Storage upload error:", uploadError);
       return NextResponse.json(
-        { error: 'Failed to upload photo to storage' },
-        { status: 500 }
+        { error: "Failed to upload photo to storage" },
+        { status: 500 },
       );
     }
 
     // Get public URL
     const { data: publicUrlData } = supabase.storage
-      .from('candidate-photos')
+      .from("candidate-photos")
       .getPublicUrl(storagePath);
 
     const photoUrl = publicUrlData.publicUrl;
@@ -98,15 +101,15 @@ export async function POST(
     }
 
     const { error: updateError } = await supabase
-      .from('candidates')
+      .from("candidates")
       .update(updateData)
-      .eq('id', candidateId);
+      .eq("id", candidateId);
 
     if (updateError) {
-      console.error('Database update error:', updateError);
+      console.error("Database update error:", updateError);
       return NextResponse.json(
-        { error: 'Failed to update candidate record' },
-        { status: 500 }
+        { error: "Failed to update candidate record" },
+        { status: 500 },
       );
     }
 
@@ -121,8 +124,8 @@ export async function POST(
       success: true,
       photoUrl,
       message: faceEmbedding
-        ? 'Photo and face embedding saved successfully'
-        : 'Photo saved successfully',
+        ? "Photo and face embedding saved successfully"
+        : "Photo saved successfully",
       embedding: faceEmbedding
         ? {
             dimensions: faceEmbedding.length,
@@ -131,20 +134,20 @@ export async function POST(
         : undefined,
     });
   } catch (error) {
-    console.error('❌ Photo upload error:', error);
+    console.error("❌ Photo upload error:", error);
     return NextResponse.json(
       {
-        error: 'Internal server error',
-        message: error instanceof Error ? error.message : 'Unknown error',
+        error: "Internal server error",
+        message: error instanceof Error ? error.message : "Unknown error",
       },
-      { status: 500 }
+      { status: 500 },
     );
   }
 }
 
 export async function GET(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: { id: string } },
 ) {
   try {
     const candidateId = params.id;
@@ -152,15 +155,15 @@ export async function GET(
 
     // Get candidate photo and embedding
     const { data, error } = await supabase
-      .from('candidates')
-      .select('id, full_name, photo_url, face_embedding')
-      .eq('id', candidateId)
+      .from("candidates")
+      .select("id, full_name, photo_url, face_embedding")
+      .eq("id", candidateId)
       .single();
 
     if (error || !data) {
       return NextResponse.json(
-        { error: 'Candidate not found' },
-        { status: 404 }
+        { error: "Candidate not found" },
+        { status: 404 },
       );
     }
 
@@ -172,10 +175,10 @@ export async function GET(
       embeddingDimensions: data.face_embedding?.length || 0,
     });
   } catch (error) {
-    console.error('❌ Get photo error:', error);
+    console.error("❌ Get photo error:", error);
     return NextResponse.json(
-      { error: 'Internal server error' },
-      { status: 500 }
+      { error: "Internal server error" },
+      { status: 500 },
     );
   }
 }
