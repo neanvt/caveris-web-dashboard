@@ -302,16 +302,23 @@ export async function deleteShift(shiftId: string) {
   return { success: true };
 }
 
-export async function getCandidates(examIds: string[]) {
+export async function getCandidates(examIds: string[], limit?: number) {
   const session = await getAuthSession();
   if (!session || examIds.length === 0) return [];
 
   const supabase = await createAdminClient();
-  const { data, error } = await supabase
+  let query = supabase
     .from("candidates")
     .select("*")
     .in("exam_id", examIds)
     .order("created_at", { ascending: false });
+
+  // Apply limit if provided for performance optimization
+  if (limit) {
+    query = query.limit(limit);
+  }
+
+  const { data, error } = await query;
 
   if (error) {
     console.error("Error fetching candidates:", error);

@@ -177,7 +177,8 @@ export function CandidatesContent() {
       const examIds = examData?.map((e: any) => e.id) || [];
 
       if (examIds.length > 0) {
-        const candidateData = await getCandidates(examIds);
+        // Load only recent 300 candidates for faster initial loading
+        const candidateData = await getCandidates(examIds, 300);
         setCandidates(candidateData);
       }
     } catch (error) {
@@ -777,6 +778,15 @@ export function CandidatesContent() {
           </div>
         </CardContent>
       </Card>
+
+      {candidates.length >= 300 && (
+        <div className="mb-4 flex items-center gap-2 rounded-lg border border-blue-200 bg-blue-50 p-3 text-sm text-blue-800">
+          <AlertCircle className="h-4 w-4 shrink-0" />
+          <p>
+            Showing the 300 most recent candidates. Use filters to narrow down results or search for specific candidates.
+          </p>
+        </div>
+      )}
 
       <Card>
         <CardContent className="p-0">

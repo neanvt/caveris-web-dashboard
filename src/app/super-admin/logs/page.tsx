@@ -1,7 +1,7 @@
 import { SuperAdminLayout } from "@/components/super-admin/layout-wrapper";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Database } from "lucide-react";
-export const dynamic = 'force-dynamic';
+export const dynamic = "force-dynamic";
 export default async function LogsPage() {
   return (
     <SuperAdminLayout>
