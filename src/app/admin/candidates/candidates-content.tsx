@@ -658,22 +658,19 @@ export function CandidatesContent() {
     }
   };
 
-  // Helper to get secure photo URL with cache busting
+  // Helper to get secure photo URL
   const getSecurePhotoUrl = (candidate: Candidate) => {
-    // Add timestamp to force refresh when photo_data exists
-    const cacheBuster = candidate.photo_data ? `?t=${Date.now()}` : '';
-    
     if (!candidate.photo_url) {
       // Try API endpoint for database photos
-      return `/api/candidates/${candidate.id}/photo${cacheBuster}`;
+      return `/api/candidates/${candidate.id}/photo`;
     }
     // Check if photo_url is insecure (http://) or points to old backend
     if (candidate.photo_url.startsWith('http://') || candidate.photo_url.includes('10.0.2.2')) {
       // Serve from database via API endpoint
-      return `/api/candidates/${candidate.id}/photo${cacheBuster}`;
+      return `/api/candidates/${candidate.id}/photo`;
     }
     // Use the existing secure HTTPS photo_url (Supabase Storage)
-    return candidate.photo_url + cacheBuster;
+    return candidate.photo_url;
   };
 
   const getStatusColor = (status: string) => {
@@ -1612,10 +1609,12 @@ export function CandidatesContent() {
                             const result = await response.json();
 
                             // Update the candidate in local state with new photo URL
+                            // Add timestamp to prevent browser from showing cached 404
+                            const photoUrlWithTimestamp = `${result.photoUrl}?t=${Date.now()}`;
                             setCandidates(prevCandidates => 
                               prevCandidates.map(c => 
                                 c.id === selectedCandidate.id 
-                                  ? { ...c, photo_url: result.photoUrl, photo_data: true as any }
+                                  ? { ...c, photo_url: photoUrlWithTimestamp }
                                   : c
                               )
                             );
