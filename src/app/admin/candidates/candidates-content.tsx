@@ -52,6 +52,7 @@ interface Candidate {
   email?: string;
   phone?: string;
   photo_url?: string;
+  photo_data?: any; // Binary photo data from database
   verification_status: string;
   verification_attempts: number;
   exam_id: string;
@@ -118,6 +119,12 @@ export function CandidatesContent() {
   const [centreFilter, setCentreFilter] = useState("all");
   const [shiftFilter, setShiftFilter] = useState("all");
 
+  // Lazy loading state
+  const [loadingMore, setLoadingMore] = useState(false);
+  const [hasMore, setHasMore] = useState(true);
+  const [currentOffset, setCurrentOffset] = useState(0);
+  const ITEMS_PER_PAGE = 10;
+
   // Import modal state
   const [showImportModal, setShowImportModal] = useState(false);
   const [csvFile, setCsvFile] = useState<File | null>(null);
@@ -178,14 +185,56 @@ export function CandidatesContent() {
       const examIds = examData?.map((e: any) => e.id) || [];
 
       if (examIds.length > 0) {
-        // Load only recent 300 candidates for faster initial loading
-        const candidateData = await getCandidates(examIds, 300);
+        // Load ONLY first 10 candidates for instant page load
+        console.log(`\ud83d\ude80 Loading first ${ITEMS_PER_PAGE} candidates...`);
+        const candidateData = await getCandidates(examIds, ITEMS_PER_PAGE, 0);
         setCandidates(candidateData);
+        setCurrentOffset(ITEMS_PER_PAGE);
+        
+        // Check if there are more candidates to load
+        setHasMore(candidateData.length === ITEMS_PER_PAGE);
+        console.log(`\u2705 Loaded ${candidateData.length} candidates initially`);
       }
     } catch (error) {
       console.error("Error loading candidates:", error);
     } finally {
       setLoading(false);
+    }
+  };
+
+  // Load more candidates in batches of 10
+  const loadMoreCandidates = async () => {
+    if (loadingMore || !hasMore) return;
+
+    try {
+      setLoadingMore(true);
+      console.log(`\ud83d\udce6 Loading more candidates... (offset: ${currentOffset})`);
+
+      const { getExams, getCandidates } = await import("@/app/actions/supabase-actions");
+      
+      const examData = await getExams();
+      const examIds = examData?.map((e: any) => e.id) || [];
+
+      if (examIds.length > 0) {
+        const moreCandidates = await getCandidates(examIds, ITEMS_PER_PAGE, currentOffset);
+        
+        if (moreCandidates.length > 0) {
+          // Append new candidates to existing list
+          setCandidates(prev => [...prev, ...moreCandidates]);
+          setCurrentOffset(prev => prev + moreCandidates.length);
+          console.log(`\u2705 Loaded ${moreCandidates.length} more candidates`);
+          
+          // Check if there are more to load
+          setHasMore(moreCandidates.length === ITEMS_PER_PAGE);
+        } else {
+          setHasMore(false);
+          console.log('\u2705 All candidates loaded');
+        }
+      }
+    } catch (error) {
+      console.error("Error loading more candidates:", error);
+    } finally {
+      setLoadingMore(false);
     }
   };
 
@@ -659,18 +708,72 @@ export function CandidatesContent() {
     }
   };
 
+  // Helper to convert binary photo data to base64 data URL
+  const convertBinaryToImage = (binaryData: any): string | null => {
+    try {
+      if (!binaryData) return null;
+      
+      // Handle PostgreSQL bytea format: buffer object with data array
+      let bytes: number[];
+      
+      if (typeof binaryData === 'string') {
+        // If it's a hex string (\\x...)
+        if (binaryData.startsWith('\\x')) {
+          const hex = binaryData.slice(2);
+          bytes = [];
+          for (let i = 0; i < hex.length; i += 2) {
+            bytes.push(parseInt(hex.substr(i, 2), 16));
+          }
+        } else {
+          // Try parsing as JSON (Buffer object)
+          const parsed = JSON.parse(binaryData);
+          bytes = parsed.data || [];
+        }
+      } else if (binaryData.data && Array.isArray(binaryData.data)) {
+        // Already a buffer object
+        bytes = binaryData.data;
+      } else if (Array.isArray(binaryData)) {
+        // Already an array of bytes
+        bytes = binaryData;
+      } else {
+        return null;
+      }
+      
+      // Convert bytes to base64
+      const binary = bytes.map(b => String.fromCharCode(b)).join('');
+      const base64 = btoa(binary);
+      return `data:image/jpeg;base64,${base64}`;
+    } catch (error) {
+      console.error('Error converting binary to image:', error);
+      return null;
+    }
+  };
+
   // Helper to get secure photo URL
   const getSecurePhotoUrl = (candidate: Candidate) => {
-    if (!candidate.photo_url) {
-      // Try API endpoint for database photos
-      return `/api/candidates/${candidate.id}/photo`;
+    // PRIORITY 1: Use binary data if available (faster, no network call needed)
+    if (candidate.photo_data) {
+      const binaryImage = convertBinaryToImage(candidate.photo_data);
+      if (binaryImage) {
+        console.log(`📸 Using binary data for ${candidate.full_name}`);
+        return binaryImage;
+      }
     }
+    
+    // PRIORITY 2: Use photo URL if available
+    if (!candidate.photo_url) {
+      // No photo data available
+      return null;
+    }
+    
     // Check if photo_url is insecure (http://) or points to old backend
     if (candidate.photo_url.startsWith('http://') || candidate.photo_url.includes('10.0.2.2')) {
-      // Serve from database via API endpoint
+      // Fallback to API endpoint for insecure URLs
       return `/api/candidates/${candidate.id}/photo`;
     }
-    // Use the existing secure HTTPS photo_url (Supabase Storage)
+    
+    // Use the existing secure HTTPS photo_url
+    console.log(`🔗 Using URL for ${candidate.full_name}`);
     return candidate.photo_url;
   };
 
@@ -957,13 +1060,42 @@ export function CandidatesContent() {
             </Table>
           )}
 
+          {/* Lazy Loading: Load more candidates from database */}
+          {!loading && hasMore && (
+            <div className="flex justify-center p-6 border-t border-gray-100">
+              <Button
+                variant="outline"
+                onClick={loadMoreCandidates}
+                disabled={loadingMore}
+                className="min-w-[200px]"
+              >
+                {loadingMore ? (
+                  <>
+                    <div className="mr-2 h-4 w-4 animate-spin rounded-full border-2 border-green-600 border-t-transparent"></div>
+                    Loading...
+                  </>
+                ) : (
+                  <>
+                    Load More
+                    <span className="ml-2 text-gray-500">
+                      ({candidates.length} loaded)
+                    </span>
+                  </>
+                )}
+              </Button>
+            </div>
+          )}
+          
+          {/* Client-side pagination for filtered results */}
           {visibleCount < filteredCandidates.length && (
             <div className="flex justify-center p-4 border-t border-gray-100">
               <Button
                 variant="outline"
                 onClick={() => setVisibleCount((prev) => prev + 50)}
+                className="text-sm"
               >
-                Load More ({filteredCandidates.length - visibleCount} remaining)
+                Show More Filtered Results ({filteredCandidates.length - visibleCount} hidden)
+              </Button>
               </Button>
             </div>
           )}
@@ -1652,6 +1784,9 @@ export function CandidatesContent() {
                             setEditPhotoPreview(null);
                             
                             alert("✅ Photo uploaded successfully!");
+                            
+                            // Close the modal after successful upload
+                            setShowEditModal(false);
                             
                             // Reload data in background to ensure sync
                             loadData();

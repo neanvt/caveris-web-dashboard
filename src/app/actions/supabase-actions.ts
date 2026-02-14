@@ -302,7 +302,7 @@ export async function deleteShift(shiftId: string) {
   return { success: true };
 }
 
-export async function getCandidates(examIds: string[], limit?: number) {
+export async function getCandidates(examIds: string[], limit?: number, offset?: number) {
   const session = await getAuthSession();
   if (!session || examIds.length === 0) return [];
 
@@ -313,8 +313,11 @@ export async function getCandidates(examIds: string[], limit?: number) {
     .in("exam_id", examIds)
     .order("created_at", { ascending: false });
 
-  // Apply limit if provided for performance optimization
-  if (limit) {
+  // Apply offset for pagination (skip already loaded records)
+  if (offset !== undefined && offset > 0) {
+    query = query.range(offset, offset + (limit || 10) - 1);
+  } else if (limit) {
+    // Just limit without offset (initial load)
     query = query.limit(limit);
   }
 
