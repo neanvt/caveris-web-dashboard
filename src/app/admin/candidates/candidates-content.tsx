@@ -3,7 +3,6 @@
 import { useEffect, useState } from "react";
 import { createClient } from "@/lib/supabase/client";
 import { useRouter } from "next/navigation";
-import { faceNetService } from "@/lib/facenet-service";
 import {
   formatDateForDisplay,
   isDateBetween,
@@ -1592,34 +1591,21 @@ export function CandidatesContent() {
                         const reader = new FileReader();
                         reader.onloadend = async () => {
                           try {
-                            console.log('📸 Starting photo upload with face embedding generation...');
+                            console.log('📸 Starting photo upload...');
                             
-                            // Step 1: Load FaceNet model (will skip if already loaded)
-                            console.log('📦 Loading FaceNet model...');
-                            await faceNetService.loadModel();
-                            console.log('✅ FaceNet model loaded');
-
-                            // Step 2: Generate face embedding from photo
-                            console.log('🔍 Generating face embedding...');
-                            const embeddingResult = await faceNetService.generateEmbedding(editPhotoFile);
-                            console.log('✅ Face embedding generated:', {
-                              dimensions: embeddingResult.dimensions,
-                              processingTime: embeddingResult.processingTime + 'ms'
-                            });
-
-                            // Step 3: Convert photo to base64
+                            // Convert photo to base64
                             const base64 = (reader.result as string).split(',')[1];
                             
-                            // Step 4: Upload photo with embedding to backend
-                            console.log('📤 Uploading photo with face embedding...');
+                            // Upload photo to backend (without face embedding for now)
+                            // Note: Face embeddings can be generated later via mobile app if needed
+                            console.log('📤 Uploading photo...');
                             const response = await fetch(
                               `/api/candidates/${selectedCandidate.id}/photo`,
                               {
                                 method: 'POST',
                                 headers: { 'Content-Type': 'application/json' },
                                 body: JSON.stringify({ 
-                                  photoBase64: base64,
-                                  faceEmbedding: Array.from(embeddingResult.embedding)
+                                  photoBase64: base64
                                 }),
                               }
                             );
@@ -1643,7 +1629,7 @@ export function CandidatesContent() {
                               )
                             );
 
-                            alert("✅ Candidate updated successfully with new photo and face embedding!");
+                            alert("✅ Candidate updated successfully with new photo!");
                             setShowEditModal(false);
                             setEditPhotoFile(null);
                             setEditPhotoPreview(null);
