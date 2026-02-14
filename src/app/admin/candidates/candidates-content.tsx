@@ -1594,12 +1594,10 @@ export function CandidatesContent() {
                           try {
                             console.log('📸 Starting photo upload with face embedding generation...');
                             
-                            // Step 1: Load FaceNet model if needed
-                            if (!faceNetService.isModelLoaded()) {
-                              console.log('📦 Loading FaceNet model...');
-                              await faceNetService.loadModel();
-                              console.log('✅ FaceNet model loaded');
-                            }
+                            // Step 1: Load FaceNet model (will skip if already loaded)
+                            console.log('📦 Loading FaceNet model...');
+                            await faceNetService.loadModel();
+                            console.log('✅ FaceNet model loaded');
 
                             // Step 2: Generate face embedding from photo
                             console.log('🔍 Generating face embedding...');
