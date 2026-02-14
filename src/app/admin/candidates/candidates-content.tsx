@@ -658,19 +658,22 @@ export function CandidatesContent() {
     }
   };
 
-  // Helper to get secure photo URL
+  // Helper to get secure photo URL with cache busting
   const getSecurePhotoUrl = (candidate: Candidate) => {
+    // Add timestamp to force refresh when photo_data exists
+    const cacheBuster = candidate.photo_data ? `?t=${Date.now()}` : '';
+    
     if (!candidate.photo_url) {
       // Try API endpoint for database photos
-      return `/api/candidates/${candidate.id}/photo`;
+      return `/api/candidates/${candidate.id}/photo${cacheBuster}`;
     }
     // Check if photo_url is insecure (http://) or points to old backend
     if (candidate.photo_url.startsWith('http://') || candidate.photo_url.includes('10.0.2.2')) {
       // Serve from database via API endpoint
-      return `/api/candidates/${candidate.id}/photo`;
+      return `/api/candidates/${candidate.id}/photo${cacheBuster}`;
     }
     // Use the existing secure HTTPS photo_url (Supabase Storage)
-    return candidate.photo_url;
+    return candidate.photo_url + cacheBuster;
   };
 
   const getStatusColor = (status: string) => {
@@ -937,6 +940,9 @@ export function CandidatesContent() {
                               size="sm"
                               onClick={() => {
                                 setSelectedCandidate(candidate);
+                                // Reset photo preview when opening modal
+                                setEditPhotoFile(null);
+                                setEditPhotoPreview(null);
                                 setShowEditModal(true);
                               }}
                               className="text-blue-600 hover:text-blue-700"
@@ -1603,11 +1609,23 @@ export function CandidatesContent() {
                               throw new Error(errorData.error || `Upload failed: ${response.status}`);
                             }
 
+                            const result = await response.json();
+
+                            // Update the candidate in local state with new photo URL
+                            setCandidates(prevCandidates => 
+                              prevCandidates.map(c => 
+                                c.id === selectedCandidate.id 
+                                  ? { ...c, photo_url: result.photoUrl, photo_data: true as any }
+                                  : c
+                              )
+                            );
+
                             alert("Candidate updated successfully with new photo!");
                             setShowEditModal(false);
                             setEditPhotoFile(null);
                             setEditPhotoPreview(null);
-                            loadData(); // Reload data to show updates
+                            // Force reload to ensure we have latest data
+                            await loadData();
                           } catch (photoError) {
                             console.error("Error uploading photo:", photoError);
                             const errorMessage = photoError instanceof Error 
