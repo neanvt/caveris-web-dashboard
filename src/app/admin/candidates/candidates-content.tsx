@@ -1600,14 +1600,24 @@ export function CandidatesContent() {
                             // Convert photo to base64
                             const base64 = (reader.result as string).split(',')[1];
                             
-                            // Upload photo to backend (without face embedding for now)
+                            // Upload photo to backend ASP.NET API (same as mobile app)
                             // Note: Face embeddings can be generated later via mobile app if needed
-                            console.log('📤 Uploading photo...');
+                            console.log('📤 Uploading photo to backend API...');
+                            
+                            // Get auth token from sessionStorage
+                            const token = sessionStorage.getItem('access_token');
+                            if (!token) {
+                              throw new Error('Not authenticated. Please log in again.');
+                            }
+                            
                             const response = await fetch(
-                              `/api/candidates/${selectedCandidate.id}/photo`,
+                              `https://api.caveris.tech/api/candidates/${selectedCandidate.id}/photo`,
                               {
                                 method: 'POST',
-                                headers: { 'Content-Type': 'application/json' },
+                                headers: { 
+                                  'Content-Type': 'application/json',
+                                  'Authorization': `Bearer ${token}` // JWT token for backend authentication
+                                },
                                 body: JSON.stringify({ 
                                   photoBase64: base64
                                 }),

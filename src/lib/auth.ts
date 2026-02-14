@@ -47,11 +47,14 @@ export function setAuthData(data: AuthResponse) {
   
   sessionStorage.setItem("user", JSON.stringify(userData));
   
-  // Note: Tokens should be set as httpOnly cookies by the backend
-  // This prevents XSS attacks as JavaScript cannot access them
-  // Backend should set cookies like:
-  // Set-Cookie: access_token=<token>; HttpOnly; Secure; SameSite=Strict; Max-Age=900
-  // Set-Cookie: refresh_token=<token>; HttpOnly; Secure; SameSite=Strict; Max-Age=604800
+  // Store token for backend API calls (needed for cross-domain authentication with api.caveris.tech)
+  // Note: This is less secure than httpOnly cookies but required for cross-domain API calls
+  if (data.token) {
+    sessionStorage.setItem("access_token", data.token);
+  }
+  if (data.refreshToken) {
+    sessionStorage.setItem("refresh_token", data.refreshToken);
+  }
 }
 
 /**
@@ -59,8 +62,10 @@ export function setAuthData(data: AuthResponse) {
  * Must call backend to clear httpOnly cookies
  */
 export async function clearAuthData() {
-  // Clear sessionStorage
+  // Clear sessionStorage (including tokens)
   sessionStorage.removeItem("user");
+  sessionStorage.removeItem("access_token");
+  sessionStorage.removeItem("refresh_token");
   
   // Call backend to clear httpOnly cookies
   try {
@@ -113,6 +118,28 @@ export function isTokenExpired(expiresAt: string): boolean {
     return currentTime >= (expiryTime - 30000);
   } catch {
     return true;
+  }
+}
+
+/**
+ * Get access token from sessionStorage
+ */
+export function getToken(): string | null {
+  try {
+    return sessionStorage.getItem("access_token");
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * Get refresh token from sessionStorage
+ */
+export function getRefreshToken(): string | null {
+  try {
+    return sessionStorage.getItem("refresh_token");
+  } catch {
+    return null;
   }
 }
 
