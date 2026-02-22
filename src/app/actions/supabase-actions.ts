@@ -4,11 +4,14 @@ import { createAdminClient } from "@/lib/supabase/server";
 import { getAuthSession } from "@/lib/auth-server";
 import { hashPassword, generateDefaultPassword } from "@/lib/password-utils";
 
-const calculateExamStatus = (start: string | Date, end: string | Date): string => {
+const calculateExamStatus = (
+  start: string | Date,
+  end: string | Date,
+): string => {
   const now = new Date();
-  const todayStr = now.toISOString().split('T')[0];
-  const startStr = new Date(start).toISOString().split('T')[0];
-  const endStr = new Date(end).toISOString().split('T')[0];
+  const todayStr = now.toISOString().split("T")[0];
+  const startStr = new Date(start).toISOString().split("T")[0];
+  const endStr = new Date(end).toISOString().split("T")[0];
 
   if (todayStr > endStr) return "completed";
   if (todayStr >= startStr && todayStr <= endStr) return "ongoing";
@@ -34,7 +37,8 @@ export async function getDashboardStats() {
   }
 
   const examIds = exams?.map((e) => e.id) || [];
-  const activeExamsCount = exams?.filter((e) => e.status === "ongoing").length || 0;
+  const activeExamsCount =
+    exams?.filter((e) => e.status === "ongoing").length || 0;
 
   let candidateCount = 0;
   let verifiedCount = 0;
@@ -94,20 +98,23 @@ export async function getExams() {
 
   const formattedData = data?.map((exam) => {
     // Only auto-update if not cancelled and dates are present
-    if (exam.status !== 'cancelled' && exam.start_date && exam.end_date) {
-        const correctStatus = calculateExamStatus(exam.start_date, exam.end_date);
-        if (correctStatus !== exam.status && exam.status !== 'draft') {
-            // Update DB in background
-            void supabase.from('exams').update({ status: correctStatus }).eq('id', exam.id);
-            return { ...exam, status: correctStatus };
-        }
+    if (exam.status !== "cancelled" && exam.start_date && exam.end_date) {
+      const correctStatus = calculateExamStatus(exam.start_date, exam.end_date);
+      if (correctStatus !== exam.status && exam.status !== "draft") {
+        // Update DB in background
+        void supabase
+          .from("exams")
+          .update({ status: correctStatus })
+          .eq("id", exam.id);
+        return { ...exam, status: correctStatus };
+      }
     }
 
     return {
       ...exam,
-      start_date: exam.start_date ? exam.start_date.split('T')[0] : null,
-      end_date: exam.end_date ? exam.end_date.split('T')[0] : null,
-      exam_date: exam.exam_date ? exam.exam_date.split('T')[0] : null,
+      start_date: exam.start_date ? exam.start_date.split("T")[0] : null,
+      end_date: exam.end_date ? exam.end_date.split("T")[0] : null,
+      exam_date: exam.exam_date ? exam.exam_date.split("T")[0] : null,
     };
   });
 
@@ -128,12 +135,15 @@ export async function getExam(examId: string) {
   if (error) return { error: error.message };
 
   // Auto-correct status on single fetch too
-  if (data && data.status !== 'cancelled' && data.start_date && data.end_date) {
-      const correctStatus = calculateExamStatus(data.start_date, data.end_date);
-      if (correctStatus !== data.status && data.status !== 'draft') {
-           await supabase.from('exams').update({ status: correctStatus }).eq('id', examId);
-           data.status = correctStatus;
-      }
+  if (data && data.status !== "cancelled" && data.start_date && data.end_date) {
+    const correctStatus = calculateExamStatus(data.start_date, data.end_date);
+    if (correctStatus !== data.status && data.status !== "draft") {
+      await supabase
+        .from("exams")
+        .update({ status: correctStatus })
+        .eq("id", examId);
+      data.status = correctStatus;
+    }
   }
 
   return { data };
@@ -160,7 +170,7 @@ export async function createExam(values: any) {
     .single();
 
   if (error) return { error: error.message };
-  
+
   revalidatePath("/admin/exams");
   revalidatePath("/admin");
   return { success: true, data };
@@ -171,8 +181,12 @@ export async function updateExam(examId: string, updates: any) {
   if (!session) return { error: "Unauthorized" };
 
   // Auto-calculate status from dates if provided
-  if (updates.start_date && updates.end_date && updates.status !== 'cancelled') {
-      updates.status = calculateExamStatus(updates.start_date, updates.end_date);
+  if (
+    updates.start_date &&
+    updates.end_date &&
+    updates.status !== "cancelled"
+  ) {
+    updates.status = calculateExamStatus(updates.start_date, updates.end_date);
   }
 
   const supabase = await createAdminClient();
@@ -182,7 +196,7 @@ export async function updateExam(examId: string, updates: any) {
     .eq("id", examId);
 
   if (error) return { error: error.message };
-  
+
   revalidatePath("/admin/exams");
   revalidatePath("/admin"); // Optional: Update dashboard stats too
   return { success: true };
@@ -226,7 +240,10 @@ export async function createCentre(centreData: Record<string, unknown>) {
   return { success: true };
 }
 
-export async function updateCentre(centreId: string, centreData: Record<string, unknown>) {
+export async function updateCentre(
+  centreId: string,
+  centreData: Record<string, unknown>,
+) {
   const session = await getAuthSession();
   if (!session) return { error: "Unauthorized" };
 
@@ -302,7 +319,11 @@ export async function deleteShift(shiftId: string) {
   return { success: true };
 }
 
-export async function getCandidates(examIds: string[], limit?: number, offset?: number) {
+export async function getCandidates(
+  examIds: string[],
+  limit?: number,
+  offset?: number,
+) {
   const session = await getAuthSession();
   if (!session || examIds.length === 0) return [];
 
@@ -331,7 +352,7 @@ export async function getCandidates(examIds: string[], limit?: number, offset?: 
   // Format exam_date field to remove time component (YYYY-MM-DD only)
   const formattedData = data?.map((candidate) => ({
     ...candidate,
-    exam_date: candidate.exam_date ? candidate.exam_date.split('T')[0] : null,
+    exam_date: candidate.exam_date ? candidate.exam_date.split("T")[0] : null,
   }));
 
   return formattedData || [];
@@ -342,7 +363,7 @@ export async function getManagers() {
   if (!session) return [];
 
   const supabase = await createAdminClient();
-  
+
   // First, get all managers (Admins should see all)
   const { data: managers, error: managersError } = await supabase
     .from("users")
@@ -363,12 +384,13 @@ export async function getManagers() {
   console.log(`✓ Found ${managers.length} managers`);
 
   // Get all assignments for these managers
-  const managerIds = managers.map(m => m.id);
+  const managerIds = managers.map((m) => m.id);
   console.log("📍 Fetching assignments for manager IDs:", managerIds);
 
   const { data: assignments, error: assignmentsError } = await supabase
     .from("manager_centre_assignments")
-    .select(`
+    .select(
+      `
       id,
       manager_id,
       assigned_at,
@@ -378,7 +400,8 @@ export async function getManagers() {
       exams!mca_to_exams_fk(id, exam_name, exam_code),
       master_centres!mca_to_centres_fk(id, centre_name, centre_code),
       master_shifts!mca_to_shifts_fk(id, shift_name, shift_code)
-    `)
+    `,
+    )
     .in("manager_id", managerIds);
 
   if (assignmentsError) {
@@ -391,22 +414,26 @@ export async function getManagers() {
   }
 
   // Merge assignments into managers
-  const managersWithAssignments = managers.map(manager => {
-    const managerAssignments = assignments?.filter(a => a.manager_id === manager.id) || [];
-    console.log(`Manager ${manager.full_name} (${manager.id}): ${managerAssignments.length} assignments`);
-    
+  const managersWithAssignments = managers.map((manager) => {
+    const managerAssignments =
+      assignments?.filter((a) => a.manager_id === manager.id) || [];
+    console.log(
+      `Manager ${manager.full_name} (${manager.id}): ${managerAssignments.length} assignments`,
+    );
+
     return {
       ...manager,
-      assignments: managerAssignments.map(a => ({
+      assignments: managerAssignments.map((a) => ({
         id: a.id,
-        exam_name: (a.exams as any)?.exam_name || 'N/A',
-        exam_code: (a.exams as any)?.exam_code || '',
-        centre_name: (a.master_centres as any)?.centre_name || a.centre_id || 'N/A',
-        centre_code: (a.master_centres as any)?.centre_code || '',
-        shift_name: (a.master_shifts as any)?.shift_name || 'N/A',
-        shift_code: (a.master_shifts as any)?.shift_code || '',
-        assignment_date: a.assigned_at
-      }))
+        exam_name: (a.exams as any)?.exam_name || "N/A",
+        exam_code: (a.exams as any)?.exam_code || "",
+        centre_name:
+          (a.master_centres as any)?.centre_name || a.centre_id || "N/A",
+        centre_code: (a.master_centres as any)?.centre_code || "",
+        shift_name: (a.master_shifts as any)?.shift_name || "N/A",
+        shift_code: (a.master_shifts as any)?.shift_code || "",
+        assignment_date: a.assigned_at,
+      })),
     };
   });
 
@@ -418,7 +445,7 @@ export async function getVerifiers() {
   if (!session) return [];
 
   const supabase = await createAdminClient();
-  
+
   // First, get all verifiers
   const { data: verifiers, error: verifiersError } = await supabase
     .from("users")
@@ -435,17 +462,19 @@ export async function getVerifiers() {
   if (!verifiers || verifiers.length === 0) return [];
 
   // Get all assignments for these verifiers
-  const verifierIds = verifiers.map(v => v.id);
+  const verifierIds = verifiers.map((v) => v.id);
   const { data: assignments, error: assignmentsError } = await supabase
     .from("verifier_assignments")
-    .select(`
+    .select(
+      `
       id,
       verifier_id,
       assignment_date,
       exams!inner(id, exam_name, exam_code),
       master_centres!inner(id, centre_name, centre_code),
       master_shifts!inner(id, shift_name, shift_code)
-    `)
+    `,
+    )
     .in("verifier_id", verifierIds);
 
   if (assignmentsError) {
@@ -453,20 +482,21 @@ export async function getVerifiers() {
   }
 
   // Merge assignments into verifiers
-  const verifiersWithAssignments = verifiers.map(verifier => {
-    const verifierAssignments = assignments?.filter(a => a.verifier_id === verifier.id) || [];
+  const verifiersWithAssignments = verifiers.map((verifier) => {
+    const verifierAssignments =
+      assignments?.filter((a) => a.verifier_id === verifier.id) || [];
     return {
       ...verifier,
-      assignments: verifierAssignments.map(a => ({
+      assignments: verifierAssignments.map((a) => ({
         id: a.id,
-        exam_name: (a.exams as any)?.exam_name || '',
-        exam_code: (a.exams as any)?.exam_code || '',
-        centre_name: (a.master_centres as any)?.centre_name || '',
-        centre_code: (a.master_centres as any)?.centre_code || '',
-        shift_name: (a.master_shifts as any)?.shift_name || '',
-        shift_code: (a.master_shifts as any)?.shift_code || '',
-        assignment_date: a.assignment_date
-      }))
+        exam_name: (a.exams as any)?.exam_name || "",
+        exam_code: (a.exams as any)?.exam_code || "",
+        centre_name: (a.master_centres as any)?.centre_name || "",
+        centre_code: (a.master_centres as any)?.centre_code || "",
+        shift_name: (a.master_shifts as any)?.shift_name || "",
+        shift_code: (a.master_shifts as any)?.shift_code || "",
+        assignment_date: a.assignment_date,
+      })),
     };
   });
 
@@ -547,15 +577,18 @@ export async function createShift(shiftData: {
   return { success: true };
 }
 
-export async function updateShift(shiftId: string, shiftData: Partial<{
-  shift_name: string;
-  shift_code: string;
-  gate_open_time: string;
-  gate_close_time: string;
-  start_time: string;
-  end_time: string;
-  is_active: boolean;
-}>) {
+export async function updateShift(
+  shiftId: string,
+  shiftData: Partial<{
+    shift_name: string;
+    shift_code: string;
+    gate_open_time: string;
+    gate_close_time: string;
+    start_time: string;
+    end_time: string;
+    is_active: boolean;
+  }>,
+) {
   const session = await getAuthSession();
   if (!session) return { error: "Unauthorized" };
 
@@ -630,7 +663,8 @@ export async function importCandidateRow(rowData: {
         .select("id")
         .single();
 
-      if (examError) throw new Error(`Exam creation failed: ${examError.message}`);
+      if (examError)
+        throw new Error(`Exam creation failed: ${examError.message}`);
       exam = newExam;
     }
 
@@ -658,7 +692,8 @@ export async function importCandidateRow(rowData: {
         .select("id")
         .single();
 
-      if (centreError) throw new Error(`Centre creation failed: ${centreError.message}`);
+      if (centreError)
+        throw new Error(`Centre creation failed: ${centreError.message}`);
       centre = newCentre;
     }
 
@@ -686,25 +721,24 @@ export async function importCandidateRow(rowData: {
         .select("id")
         .single();
 
-      if (shiftError) throw new Error(`Shift creation failed: ${shiftError.message}`);
+      if (shiftError)
+        throw new Error(`Shift creation failed: ${shiftError.message}`);
       shift = newShift;
     }
 
     // 4. Create candidate
-    const { error: candidateError } = await supabase
-      .from("candidates")
-      .insert({
-        roll_number: rowData.roll_number,
-        full_name: rowData.full_name,
-        father_name: rowData.father_name || null,
-        email: rowData.email || null,
-        phone: rowData.phone || null,
-        photo_url: rowData.photo_url || null,
-        exam_id: exam.id,
-        centre_id: centre.id,
-        shift_id: shift.id,
-        admin_id: session.userId,
-      });
+    const { error: candidateError } = await supabase.from("candidates").insert({
+      roll_number: rowData.roll_number,
+      full_name: rowData.full_name,
+      father_name: rowData.father_name || null,
+      email: rowData.email || null,
+      phone: rowData.phone || null,
+      photo_url: rowData.photo_url || null,
+      exam_id: exam.id,
+      centre_id: centre.id,
+      shift_id: shift.id,
+      admin_id: session.userId,
+    });
 
     if (candidateError) {
       if (candidateError.code === "23505") {
@@ -719,123 +753,147 @@ export async function importCandidateRow(rowData: {
   }
 }
 
-export async function bulkImportCandidates(rows: {
-  roll_number: string;
-  full_name: string;
-  father_name?: string;
-  date_of_birth?: string;
-  gender?: string;
-  aadhaar_number?: string;
-  address?: string;
-  email?: string;
-  phone?: string;
-  photo_url?: string;
-  exam_date: string;
-  exam_name: string;
-  exam_start_date: string;
-  exam_end_date: string;
-  exam_code: string;
-  shift_code: string;
-  shift_name: string;
-  gate_open_time: string;
-  gate_close_time: string;
-  start_time: string;
-  end_time: string;
-  centre_name: string;
-  centre_code: string;
-  centre_city: string;
-  centre_state: string;
-  centre_pincode?: string;
-  centre_address: string;
-  centre_contact_person: string;
-  centre_phone: string;
-  centre_email?: string;
-}[]) {
+export async function bulkImportCandidates(
+  rows: {
+    roll_number: string;
+    full_name: string;
+    father_name?: string;
+    date_of_birth?: string;
+    gender?: string;
+    aadhaar_number?: string;
+    address?: string;
+    email?: string;
+    phone?: string;
+    photo_url?: string;
+    exam_date: string;
+    exam_name: string;
+    exam_start_date: string;
+    exam_end_date: string;
+    exam_code: string;
+    shift_code: string;
+    shift_name: string;
+    gate_open_time: string;
+    gate_close_time: string;
+    start_time: string;
+    end_time: string;
+    centre_name: string;
+    centre_code: string;
+    centre_city: string;
+    centre_state: string;
+    centre_pincode?: string;
+    centre_address: string;
+    centre_contact_person: string;
+    centre_phone: string;
+    centre_email?: string;
+  }[],
+) {
   const session = await getAuthSession();
   if (!session) return { error: "Unauthorized" };
 
   const supabase = await createAdminClient();
-  
+
   if (rows.length === 0) return { success: true, count: 0, duplicates: 0 };
 
   try {
     // 1. Handle Exams
-    const uniqueExams = Array.from(new Map(rows.map(r => [r.exam_code, r])).values());
-    const examCodes = uniqueExams.map(e => e.exam_code);
-    
+    const uniqueExams = Array.from(
+      new Map(rows.map((r) => [r.exam_code, r])).values(),
+    );
+    const examCodes = uniqueExams.map((e) => e.exam_code);
+
     // Fetch existing
     const { data: existingExams } = await supabase
       .from("exams")
       .select("id, exam_code")
       .in("exam_code", examCodes);
-      
-    const existingExamMap = new Map(existingExams?.map(e => [e.exam_code, e.id]));
-    
+
+    const existingExamMap = new Map(
+      existingExams?.map((e) => [e.exam_code, e.id]),
+    );
+
     // Insert missing
-    const missingExams = uniqueExams.filter(e => !existingExamMap.has(e.exam_code));
+    const missingExams = uniqueExams.filter(
+      (e) => !existingExamMap.has(e.exam_code),
+    );
     const newExamMap = new Map<string, string>();
-    
+
     if (missingExams.length > 0) {
       const { data: createdExams, error: createExamError } = await supabase
         .from("exams")
-        .insert(missingExams.map(e => ({
-          exam_name: e.exam_name,
-          exam_code: e.exam_code,
-          start_date: e.exam_start_date,
-          end_date: e.exam_end_date,
-          exam_date: e.exam_date,
-          admin_id: session.userId,
-          status: calculateExamStatus(e.exam_start_date, e.exam_end_date)
-        })))
+        .insert(
+          missingExams.map((e) => ({
+            exam_name: e.exam_name,
+            exam_code: e.exam_code,
+            start_date: e.exam_start_date,
+            end_date: e.exam_end_date,
+            exam_date: e.exam_date,
+            admin_id: session.userId,
+            status: calculateExamStatus(e.exam_start_date, e.exam_end_date),
+          })),
+        )
         .select("id, exam_code");
-        
-      if (createExamError) throw new Error(`Bulk exam creation failed: ${createExamError.message}`);
-      createdExams?.forEach(e => newExamMap.set(e.exam_code, e.id));
+
+      if (createExamError)
+        throw new Error(
+          `Bulk exam creation failed: ${createExamError.message}`,
+        );
+      createdExams?.forEach((e) => newExamMap.set(e.exam_code, e.id));
     }
-    
+
     const finalExamMap = new Map([...existingExamMap, ...newExamMap]);
 
     // 2. Handle Centres (using master_centres)
-    const uniqueCentres = Array.from(new Map(rows.map(r => [r.centre_code, r])).values());
-    const centreCodes = uniqueCentres.map(c => c.centre_code);
-    
+    const uniqueCentres = Array.from(
+      new Map(rows.map((r) => [r.centre_code, r])).values(),
+    );
+    const centreCodes = uniqueCentres.map((c) => c.centre_code);
+
     const { data: existingCentres } = await supabase
       .from("master_centres")
       .select("id, centre_code")
       .in("centre_code", centreCodes);
 
-    const existingCentreMap = new Map(existingCentres?.map(c => [c.centre_code, c.id]));
-    
-    const missingCentres = uniqueCentres.filter(c => !existingCentreMap.has(c.centre_code));
+    const existingCentreMap = new Map(
+      existingCentres?.map((c) => [c.centre_code, c.id]),
+    );
+
+    const missingCentres = uniqueCentres.filter(
+      (c) => !existingCentreMap.has(c.centre_code),
+    );
     const newCentreMap = new Map<string, string>();
 
     if (missingCentres.length > 0) {
       const { data: createdCentres, error: createCentreError } = await supabase
         .from("master_centres")
-        .insert(missingCentres.map(c => ({
-          centre_name: c.centre_name,
-          centre_code: c.centre_code,
-          city: c.centre_city,
-          state: c.centre_state,
-          pincode: c.centre_pincode || null,
-          address: c.centre_address,
-          contact_person: c.centre_contact_person,
-          contact_phone: c.centre_phone,
-          contact_email: c.centre_email || null,
-          admin_id: session.userId,
-          is_active: true
-        })))
+        .insert(
+          missingCentres.map((c) => ({
+            centre_name: c.centre_name,
+            centre_code: c.centre_code,
+            city: c.centre_city,
+            state: c.centre_state,
+            pincode: c.centre_pincode || null,
+            address: c.centre_address,
+            contact_person: c.centre_contact_person,
+            contact_phone: c.centre_phone,
+            contact_email: c.centre_email || null,
+            admin_id: session.userId,
+            is_active: true,
+          })),
+        )
         .select("id, centre_code");
 
-      if (createCentreError) throw new Error(`Bulk centre creation failed: ${createCentreError.message}`);
-      createdCentres?.forEach(c => newCentreMap.set(c.centre_code, c.id));
+      if (createCentreError)
+        throw new Error(
+          `Bulk centre creation failed: ${createCentreError.message}`,
+        );
+      createdCentres?.forEach((c) => newCentreMap.set(c.centre_code, c.id));
     }
 
     const finalCentreMap = new Map([...existingCentreMap, ...newCentreMap]);
 
     // 3. Handle Shifts (using master_shifts)
     const neededShifts = new Map<string, any>();
-    rows.forEach(r => {
+    rows.forEach((r) => {
       const examId = finalExamMap.get(r.exam_code);
       if (examId) {
         const key = `${examId}_${r.shift_code}`;
@@ -845,49 +903,67 @@ export async function bulkImportCandidates(rows: {
       }
     });
 
-    const relevantExamIds = Array.from(new Set(Array.from(finalExamMap.values())));
-    
+    const relevantExamIds = Array.from(
+      new Set(Array.from(finalExamMap.values())),
+    );
+
     const { data: existingShifts } = await supabase
       .from("master_shifts")
       .select("id, shift_code, exam_id")
       .in("exam_id", relevantExamIds);
-      
-    const existingShiftMap = new Map<string, string>();
-    existingShifts?.forEach(s => existingShiftMap.set(`${s.exam_id}_${s.shift_code}`, s.id));
 
-    const missingShifts = Array.from(neededShifts.values()).filter(s => {
-       const key = `${s.exam_id}_${s.shift_code}`;
-       return !existingShiftMap.has(key);
+    const existingShiftMap = new Map<string, string>();
+    existingShifts?.forEach((s) =>
+      existingShiftMap.set(`${s.exam_id}_${s.shift_code}`, s.id),
+    );
+
+    const missingShifts = Array.from(neededShifts.values()).filter((s) => {
+      const key = `${s.exam_id}_${s.shift_code}`;
+      return !existingShiftMap.has(key);
     });
 
     if (missingShifts.length > 0) {
       const { data: createdShifts, error: createShiftError } = await supabase
         .from("master_shifts")
-        .insert(missingShifts.map(s => ({
-          shift_code: s.shift_code,
-          shift_name: s.shift_name,
-          gate_open_time: s.gate_open_time,
-          gate_close_time: s.gate_close_time,
-          start_time: s.start_time,
-          end_time: s.end_time,
-          exam_id: s.exam_id,
-          admin_id: session.userId
-        })))
+        .insert(
+          missingShifts.map((s) => ({
+            shift_code: s.shift_code,
+            shift_name: s.shift_name,
+            gate_open_time: s.gate_open_time,
+            gate_close_time: s.gate_close_time,
+            start_time: s.start_time,
+            end_time: s.end_time,
+            exam_id: s.exam_id,
+            admin_id: session.userId,
+          })),
+        )
         .select("id, shift_code, exam_id");
 
-      if (createShiftError) throw new Error(`Bulk shift creation failed: ${createShiftError.message}`);
-      createdShifts?.forEach(s => existingShiftMap.set(`${s.exam_id}_${s.shift_code}`, s.id));
+      if (createShiftError)
+        throw new Error(
+          `Bulk shift creation failed: ${createShiftError.message}`,
+        );
+      createdShifts?.forEach((s) =>
+        existingShiftMap.set(`${s.exam_id}_${s.shift_code}`, s.id),
+      );
     }
 
     // 4. Populate exam_centre_assignments (for ALL rows, including those with existing roll numbers)
-    const examCentreAssignments = new Map<string, { exam_id: string; centre_id: string; date: string }>();
-    rows.forEach(r => {
+    const examCentreAssignments = new Map<
+      string,
+      { exam_id: string; centre_id: string; date: string }
+    >();
+    rows.forEach((r) => {
       const examId = finalExamMap.get(r.exam_code);
       const centreId = finalCentreMap.get(r.centre_code);
       if (examId && centreId) {
         const key = `${examId}_${centreId}_${r.exam_date}`;
         if (!examCentreAssignments.has(key)) {
-          examCentreAssignments.set(key, { exam_id: examId, centre_id: centreId, date: r.exam_date });
+          examCentreAssignments.set(key, {
+            exam_id: examId,
+            centre_id: centreId,
+            date: r.exam_date,
+          });
         }
       }
     });
@@ -914,7 +990,10 @@ export async function bulkImportCandidates(rows: {
         }
 
         if (existing) {
-          ecaMap.set(`${eca.exam_id}_${eca.centre_id}_${eca.date}`, existing.id);
+          ecaMap.set(
+            `${eca.exam_id}_${eca.centre_id}_${eca.date}`,
+            existing.id,
+          );
           existingEcaCount++;
         } else {
           const { data: created, error: ecaError } = await supabase
@@ -924,39 +1003,51 @@ export async function bulkImportCandidates(rows: {
               centre_id: eca.centre_id,
               assignment_date: eca.date,
               assigned_by: session.userId,
-              capacity: 0  // Default capacity, can be updated later
+              capacity: 0, // Default capacity, can be updated later
             })
             .select("id")
             .single();
 
           if (ecaError) {
-            ecaErrors.push(`INSERT for exam=${eca.exam_id}, centre=${eca.centre_id}, date=${eca.date}: ${ecaError.message}`);
+            ecaErrors.push(
+              `INSERT for exam=${eca.exam_id}, centre=${eca.centre_id}, date=${eca.date}: ${ecaError.message}`,
+            );
           } else if (created) {
-            ecaMap.set(`${eca.exam_id}_${eca.centre_id}_${eca.date}`, created.id);
+            ecaMap.set(
+              `${eca.exam_id}_${eca.centre_id}_${eca.date}`,
+              created.id,
+            );
             newEcaCount++;
           } else {
-            ecaErrors.push(`INSERT returned no data for exam=${eca.exam_id}, centre=${eca.centre_id}`);
+            ecaErrors.push(
+              `INSERT returned no data for exam=${eca.exam_id}, centre=${eca.centre_id}`,
+            );
           }
         }
       }
     }
 
     // 5. Populate centre_shift_assignments (for ALL rows, including those with existing roll numbers)
-    const centreShiftAssignments = new Map<string, { eca_id: string; shift_id: string }>();
-    
+    const centreShiftAssignments = new Map<
+      string,
+      { eca_id: string; shift_id: string }
+    >();
+
     // Debug: Log the maps to understand what's available
     console.log(`DEBUG: finalExamMap size: ${finalExamMap.size}`);
     console.log(`DEBUG: finalCentreMap size: ${finalCentreMap.size}`);
     console.log(`DEBUG: existingShiftMap size: ${existingShiftMap.size}`);
     console.log(`DEBUG: ecaMap size: ${ecaMap.size}`);
-    
+
     // Debug: Log the keys in each map
-    console.log(`DEBUG: existingShiftMap keys: ${Array.from(existingShiftMap.keys()).join(', ')}`);
-    console.log(`DEBUG: ecaMap keys: ${Array.from(ecaMap.keys()).join(', ')}`);
-    
+    console.log(
+      `DEBUG: existingShiftMap keys: ${Array.from(existingShiftMap.keys()).join(", ")}`,
+    );
+    console.log(`DEBUG: ecaMap keys: ${Array.from(ecaMap.keys()).join(", ")}`);
+
     let debugMissing = { noExam: 0, noCentre: 0, noShift: 0, noEca: 0 };
-    
-    rows.forEach(r => {
+
+    rows.forEach((r) => {
       const examId = finalExamMap.get(r.exam_code);
       const centreId = finalCentreMap.get(r.centre_code);
       const shiftKey = `${examId}_${r.shift_code}`;
@@ -969,8 +1060,12 @@ export async function bulkImportCandidates(rows: {
         console.log(`DEBUG: First row lookup:`);
         console.log(`  exam_code: ${r.exam_code} -> examId: ${examId}`);
         console.log(`  centre_code: ${r.centre_code} -> centreId: ${centreId}`);
-        console.log(`  shift_code: ${r.shift_code}, shiftKey: ${shiftKey} -> shiftId: ${shiftId}`);
-        console.log(`  exam_date: ${r.exam_date}, ecaKey: ${ecaKey} -> ecaId: ${ecaId}`);
+        console.log(
+          `  shift_code: ${r.shift_code}, shiftKey: ${shiftKey} -> shiftId: ${shiftId}`,
+        );
+        console.log(
+          `  exam_date: ${r.exam_date}, ecaKey: ${ecaKey} -> ecaId: ${ecaId}`,
+        );
       }
 
       if (!examId) debugMissing.noExam++;
@@ -986,8 +1081,12 @@ export async function bulkImportCandidates(rows: {
       }
     });
 
-    console.log(`DEBUG: Missing lookups: noExam=${debugMissing.noExam}, noCentre=${debugMissing.noCentre}, noShift=${debugMissing.noShift}, noEca=${debugMissing.noEca}`);
-    console.log(`DEBUG: centreShiftAssignments to create: ${centreShiftAssignments.size}`);
+    console.log(
+      `DEBUG: Missing lookups: noExam=${debugMissing.noExam}, noCentre=${debugMissing.noCentre}, noShift=${debugMissing.noShift}, noEca=${debugMissing.noEca}`,
+    );
+    console.log(
+      `DEBUG: centreShiftAssignments to create: ${centreShiftAssignments.size}`,
+    );
 
     const csaList = Array.from(centreShiftAssignments.values());
     let newCsaCount = 0;
@@ -1016,35 +1115,43 @@ export async function bulkImportCandidates(rows: {
               exam_centre_assignment_id: csa.eca_id,
               shift_id: csa.shift_id,
               assigned_by: session.userId,
-              capacity: 0  // Default capacity
+              capacity: 0, // Default capacity
             });
 
           if (csaError) {
-            csaErrors.push(`INSERT for eca=${csa.eca_id}, shift=${csa.shift_id}: ${csaError.message}`);
+            csaErrors.push(
+              `INSERT for eca=${csa.eca_id}, shift=${csa.shift_id}: ${csaError.message}`,
+            );
           } else {
             newCsaCount++;
           }
         }
       }
     } else {
-      console.log(`DEBUG: No centre_shift_assignments to create. Check if shifts exist in master_shifts.`);
+      console.log(
+        `DEBUG: No centre_shift_assignments to create. Check if shifts exist in master_shifts.`,
+      );
     }
 
-    console.log(`Assignments: exam_centre (new: ${newEcaCount}, existing: ${existingEcaCount}), centre_shift (new: ${newCsaCount}, existing: ${existingCsaCount})`);
+    console.log(
+      `Assignments: exam_centre (new: ${newEcaCount}, existing: ${existingEcaCount}), centre_shift (new: ${newCsaCount}, existing: ${existingCsaCount})`,
+    );
 
     // 6. Upsert Candidates (Insert new, Update existing based on roll_number)
-    const rollNumbers = rows.map(r => r.roll_number);
+    const rollNumbers = rows.map((r) => r.roll_number);
     const { data: existingCandidates } = await supabase
       .from("candidates")
       .select("id, roll_number")
       .in("roll_number", rollNumbers);
 
-    const existingCandidatesMap = new Map(existingCandidates?.map(c => [c.roll_number, c.id]) || []);
-    
+    const existingCandidatesMap = new Map(
+      existingCandidates?.map((c) => [c.roll_number, c.id]) || [],
+    );
+
     const candidatesToInsert: any[] = [];
     const candidatesToUpdate: any[] = [];
 
-    rows.forEach(r => {
+    rows.forEach((r) => {
       const examId = finalExamMap.get(r.exam_code);
       const centreId = finalCentreMap.get(r.centre_code);
       const shiftId = existingShiftMap.get(`${examId}_${r.shift_code}`);
@@ -1069,19 +1176,19 @@ export async function bulkImportCandidates(rows: {
       };
 
       const existingId = existingCandidatesMap.get(r.roll_number);
-      
+
       if (existingId) {
         // Update existing candidate
         candidatesToUpdate.push({
           id: existingId,
-          ...candidateData
+          ...candidateData,
         });
       } else {
         // Insert new candidate
         candidatesToInsert.push({
           ...candidateData,
-          verification_status: 'pending',
-          verification_attempts: 0
+          verification_status: "pending",
+          verification_attempts: 0,
         });
       }
     });
@@ -1094,12 +1201,15 @@ export async function bulkImportCandidates(rows: {
       const { error: candidateError } = await supabase
         .from("candidates")
         .insert(candidatesToInsert);
-        
-       if (candidateError) {
-         if (candidateError.code === "23505") throw new Error(`Duplicate roll number found in batch.`);
-         throw new Error(`Bulk candidate insert failed: ${candidateError.message}`);
-       }
-       insertedCount = candidatesToInsert.length;
+
+      if (candidateError) {
+        if (candidateError.code === "23505")
+          throw new Error(`Duplicate roll number found in batch.`);
+        throw new Error(
+          `Bulk candidate insert failed: ${candidateError.message}`,
+        );
+      }
+      insertedCount = candidatesToInsert.length;
     }
 
     // Update existing candidates
@@ -1110,17 +1220,20 @@ export async function bulkImportCandidates(rows: {
           .from("candidates")
           .update(updateData)
           .eq("id", id);
-          
+
         if (updateError) {
-          console.error(`Failed to update candidate ${candidate.roll_number}:`, updateError);
+          console.error(
+            `Failed to update candidate ${candidate.roll_number}:`,
+            updateError,
+          );
         } else {
           updatedCount++;
         }
       }
     }
 
-    return { 
-      success: true, 
+    return {
+      success: true,
       count: insertedCount,
       inserted: insertedCount,
       updated: updatedCount,
@@ -1139,35 +1252,38 @@ export async function bulkImportCandidates(rows: {
         ecaMapKeys: Array.from(ecaMap.keys()).slice(0, 5),
         ecaErrors: ecaErrors.slice(0, 5),
         csaErrors: csaErrors.slice(0, 5),
-        firstRow: rows.length > 0 ? {
-          exam_code: rows[0].exam_code,
-          centre_code: rows[0].centre_code,
-          shift_code: rows[0].shift_code,
-          exam_date: rows[0].exam_date
-        } : null
-      }
+        firstRow:
+          rows.length > 0
+            ? {
+                exam_code: rows[0].exam_code,
+                centre_code: rows[0].centre_code,
+                shift_code: rows[0].shift_code,
+                exam_date: rows[0].exam_date,
+              }
+            : null,
+      },
     };
-
   } catch (error: any) {
     console.error("Bulk import error:", error);
     return { error: error.message || "Unknown bulk import error" };
   }
 }
 
-
-export async function bulkImportVerifiers(rows: {
-  full_name: string;
-  father_name?: string;
-  email: string;
-  phone: string;
-  date_of_birth?: string;
-  address?: string;
-  city?: string;
-  assignment_exam_id?: string;
-  assignment_centre_id?: string;
-  assignment_shift_id?: string;
-  assignment_date?: string;
-}[]) {
+export async function bulkImportVerifiers(
+  rows: {
+    full_name: string;
+    father_name?: string;
+    email: string;
+    phone: string;
+    date_of_birth?: string;
+    address?: string;
+    city?: string;
+    assignment_exam_id?: string;
+    assignment_centre_id?: string;
+    assignment_shift_id?: string;
+    assignment_date?: string;
+  }[],
+) {
   const session = await getAuthSession();
   if (!session) return { error: "Unauthorized" };
 
@@ -1186,17 +1302,16 @@ export async function bulkImportVerifiers(rows: {
 
       let userId = existingUser?.id;
 
-
       if (!userId) {
         // Generate a new UUID for the user
         const newUserId = crypto.randomUUID();
-        
+
         // Generate default password from phone number (last 4 digits + "Caveris")
         const defaultPassword = generateDefaultPassword(row.phone);
-        
+
         // Hash the password
         const { hash, salt } = await hashPassword(defaultPassword);
-        
+
         const { data: newUser, error: createError } = await supabase
           .from("users")
           .insert({
@@ -1217,41 +1332,57 @@ export async function bulkImportVerifiers(rows: {
           .select("id")
           .single();
 
-        if (createError) throw new Error(`Create user failed: ${createError.message}`);
+        if (createError)
+          throw new Error(`Create user failed: ${createError.message}`);
         userId = newUser.id;
-        
+
         // Log the default password for the admin (in production, send via email/SMS)
-        console.log(`Created verifier ${row.email} with default password: ${defaultPassword}`);
-        console.log(`Salt: ${salt.substring(0, 10)}... (truncated for security)`);
+        console.log(
+          `Created verifier ${row.email} with default password: ${defaultPassword}`,
+        );
+        console.log(
+          `Salt: ${salt.substring(0, 10)}... (truncated for security)`,
+        );
       }
 
-      if (row.assignment_exam_id && row.assignment_centre_id && row.assignment_shift_id && userId) {
-         const { data: existingAssignment } = await supabase
-            .from("verifier_assignments")
-            .select("id")
-            .eq("verifier_id", userId)
-            .eq("exam_id", row.assignment_exam_id)
-            .eq("centre_id", row.assignment_centre_id)
-            .eq("shift_id", row.assignment_shift_id)
-            .eq("assignment_date", row.assignment_date || new Date().toISOString().split('T')[0])
-            .maybeSingle();
+      if (
+        row.assignment_exam_id &&
+        row.assignment_centre_id &&
+        row.assignment_shift_id &&
+        userId
+      ) {
+        const { data: existingAssignment } = await supabase
+          .from("verifier_assignments")
+          .select("id")
+          .eq("verifier_id", userId)
+          .eq("exam_id", row.assignment_exam_id)
+          .eq("centre_id", row.assignment_centre_id)
+          .eq("shift_id", row.assignment_shift_id)
+          .eq(
+            "assignment_date",
+            row.assignment_date || new Date().toISOString().split("T")[0],
+          )
+          .maybeSingle();
 
-         if (!existingAssignment) {
-             const { error: assignError } = await supabase
-                 .from("verifier_assignments")
-                 .insert({
-                     verifier_id: userId,
-                     exam_id: row.assignment_exam_id,
-                     centre_id: row.assignment_centre_id,
-                     shift_id: row.assignment_shift_id,
-                     assignment_date: row.assignment_date || new Date().toISOString().split('T')[0],
-                     assigned_by: session.userId
-                 });
-             
-             if (assignError) {
-                 console.error(`Assignment failed for ${row.email}: ${assignError.message}`);
-             }
-         }
+        if (!existingAssignment) {
+          const { error: assignError } = await supabase
+            .from("verifier_assignments")
+            .insert({
+              verifier_id: userId,
+              exam_id: row.assignment_exam_id,
+              centre_id: row.assignment_centre_id,
+              shift_id: row.assignment_shift_id,
+              assignment_date:
+                row.assignment_date || new Date().toISOString().split("T")[0],
+              assigned_by: session.userId,
+            });
+
+          if (assignError) {
+            console.error(
+              `Assignment failed for ${row.email}: ${assignError.message}`,
+            );
+          }
+        }
       }
       successful.push(userId);
     } catch (err: any) {
@@ -1319,7 +1450,7 @@ export async function saveExamAssignments(
     centreId: string;
     capacity: number;
     shifts: { shiftId: string; capacity: number }[];
-  }[]
+  }[],
 ) {
   const session = await getAuthSession();
   if (!session) return { error: "Unauthorized" };
@@ -1397,7 +1528,7 @@ export async function createManagerAssignmentAction(
   examId: string,
   centreId: string,
   shiftId: string,
-  assignmentDate: string
+  assignmentDate: string,
 ) {
   const session = await getAuthSession();
   if (!session) {
@@ -1405,23 +1536,21 @@ export async function createManagerAssignmentAction(
   }
 
   const supabase = await createAdminClient();
-  
-  const { error } = await supabase
-    .from("manager_centre_assignments")
-    .upsert(
-      {
-        manager_id: managerId,
-        exam_id: examId,
-        centre_id: centreId,
-        shift_id: shiftId,
-        assigned_at: assignmentDate,
-        assigned_by: session.userId,
-      },
-      {
-        onConflict: "manager_id, centre_id, exam_id, shift_id",
-        ignoreDuplicates: true, // If it exists, skip (don't fail)
-      }
-    );
+
+  const { error } = await supabase.from("manager_centre_assignments").upsert(
+    {
+      manager_id: managerId,
+      exam_id: examId,
+      centre_id: centreId,
+      shift_id: shiftId,
+      assigned_at: assignmentDate,
+      assigned_by: session.userId,
+    },
+    {
+      onConflict: "manager_id, centre_id, exam_id, shift_id",
+      ignoreDuplicates: true, // If it exists, skip (don't fail)
+    },
+  );
 
   if (error) {
     console.error("Error creating manager assignment:", error);

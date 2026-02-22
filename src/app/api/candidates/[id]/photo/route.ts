@@ -18,10 +18,7 @@ export async function POST(
     // Check authentication
     const session = await getAuthSession();
     if (!session) {
-      return NextResponse.json(
-        { error: "Unauthorized" },
-        { status: 401 },
-      );
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
     const { id: candidateId } = await params;
@@ -86,7 +83,10 @@ export async function POST(
         });
 
       if (uploadError) {
-        console.warn("Storage upload failed, will store photo in database only:", uploadError);
+        console.warn(
+          "Storage upload failed, will store photo in database only:",
+          uploadError,
+        );
       } else {
         // Get public URL
         const { data: publicUrlData } = supabase.storage
@@ -95,7 +95,10 @@ export async function POST(
         photoUrl = publicUrlData.publicUrl;
       }
     } catch (storageError) {
-      console.warn("Storage operation failed, will store photo in database only:", storageError);
+      console.warn(
+        "Storage operation failed, will store photo in database only:",
+        storageError,
+      );
     }
 
     // Update candidate record with photo URL (if available), binary data, and embedding
@@ -131,7 +134,7 @@ export async function POST(
 
     console.log(`✅ Photo uploaded for candidate ${candidateId}`, {
       filename,
-      photoUrl: photoUrl || 'stored in database only',
+      photoUrl: photoUrl || "stored in database only",
       hasEmbedding: !!faceEmbedding,
       embeddingDims: faceEmbedding?.length,
     });
@@ -170,10 +173,7 @@ export async function GET(
     // Check authentication
     const session = await getAuthSession();
     if (!session) {
-      return NextResponse.json(
-        { error: "Unauthorized" },
-        { status: 401 },
-      );
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
     const { id: candidateId } = await params;
@@ -230,9 +230,9 @@ export async function GET(
     let photoBuffer: Buffer;
     if (Buffer.isBuffer(data.photo_data)) {
       photoBuffer = data.photo_data;
-    } else if (typeof data.photo_data === 'string') {
+    } else if (typeof data.photo_data === "string") {
       // If it's a hex string or base64, convert it
-      photoBuffer = Buffer.from(data.photo_data, 'base64');
+      photoBuffer = Buffer.from(data.photo_data, "base64");
     } else {
       console.error("❌ Unexpected photo_data type:", typeof data.photo_data);
       return NextResponse.json(

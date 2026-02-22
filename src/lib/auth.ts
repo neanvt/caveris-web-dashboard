@@ -1,6 +1,6 @@
 /**
  * Secure Authentication utility functions
- * 
+ *
  * Security Features:
  * - httpOnly cookies for auth tokens (not accessible via JavaScript)
  * - sessionStorage for non-sensitive user data
@@ -44,9 +44,9 @@ export function setAuthData(data: AuthResponse) {
     requiresPasswordChange: data.requiresPasswordChange,
     expiresAt: data.expiresAt,
   };
-  
+
   sessionStorage.setItem("user", JSON.stringify(userData));
-  
+
   // Store token for backend API calls (needed for cross-domain authentication with api.caveris.tech)
   // Note: This is less secure than httpOnly cookies but required for cross-domain API calls
   if (data.token) {
@@ -66,21 +66,27 @@ export async function clearAuthData() {
   sessionStorage.removeItem("user");
   sessionStorage.removeItem("access_token");
   sessionStorage.removeItem("refresh_token");
-  
+
   // Call backend to clear httpOnly cookies
   try {
-    await fetch(`${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5001/api'}/auth/logout`, {
-      method: 'POST',
-      credentials: 'include', // Include cookies
-    });
+    await fetch(
+      `${process.env.NEXT_PUBLIC_API_URL || "http://localhost:5001/api"}/auth/logout`,
+      {
+        method: "POST",
+        credentials: "include", // Include cookies
+      },
+    );
   } catch (error) {
-    console.error('Logout error:', error);
+    console.error("Logout error:", error);
   }
-  
+
   // Fallback: Clear any non-httpOnly cookies
-  document.cookie = "access_token=; path=/; expires=Thu, 01 Jan 1970 00:00:00 GMT";
-  document.cookie = "refresh_token=; path=/; expires=Thu, 01 Jan 1970 00:00:00 GMT";
-  document.cookie = "caveris_auth=; path=/; expires=Thu, 01 Jan 1970 00:00:00 GMT";
+  document.cookie =
+    "access_token=; path=/; expires=Thu, 01 Jan 1970 00:00:00 GMT";
+  document.cookie =
+    "refresh_token=; path=/; expires=Thu, 01 Jan 1970 00:00:00 GMT";
+  document.cookie =
+    "caveris_auth=; path=/; expires=Thu, 01 Jan 1970 00:00:00 GMT";
 }
 
 /**
@@ -90,16 +96,16 @@ export function getCurrentUser(): UserData | null {
   try {
     const userJson = sessionStorage.getItem("user");
     if (!userJson) return null;
-    
+
     const user: UserData = JSON.parse(userJson);
-    
+
     // Check if token is expired
     if (user.expiresAt && isTokenExpired(user.expiresAt)) {
       // Token expired, clear data
       sessionStorage.removeItem("user");
       return null;
     }
-    
+
     return user;
   } catch {
     return null;
@@ -113,9 +119,9 @@ export function isTokenExpired(expiresAt: string): boolean {
   try {
     const expiryTime = new Date(expiresAt).getTime();
     const currentTime = Date.now();
-    
+
     // Add 30 second buffer to refresh before actual expiry
-    return currentTime >= (expiryTime - 30000);
+    return currentTime >= expiryTime - 30000;
   } catch {
     return true;
   }
@@ -174,7 +180,7 @@ export function hasRole(role: string): boolean {
 export function hasAnyRole(roles: string[]): boolean {
   const userRole = getUserRole();
   if (!userRole) return false;
-  return roles.some(role => role.toLowerCase() === userRole.toLowerCase());
+  return roles.some((role) => role.toLowerCase() === userRole.toLowerCase());
 }
 
 /**
@@ -184,7 +190,7 @@ export function hasAnyRole(roles: string[]): boolean {
 export function updateUserData(updates: Partial<UserData>) {
   const user = getCurrentUser();
   if (!user) return;
-  
+
   const updatedUser = { ...user, ...updates };
   sessionStorage.setItem("user", JSON.stringify(updatedUser));
 }
@@ -195,28 +201,31 @@ export function updateUserData(updates: Partial<UserData>) {
  */
 export async function refreshAuthToken(): Promise<boolean> {
   try {
-    const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5001/api'}/auth/refresh`, {
-      method: 'POST',
-      credentials: 'include', // Include httpOnly cookies
-      headers: {
-        'Content-Type': 'application/json',
+    const response = await fetch(
+      `${process.env.NEXT_PUBLIC_API_URL || "http://localhost:5001/api"}/auth/refresh`,
+      {
+        method: "POST",
+        credentials: "include", // Include httpOnly cookies
+        headers: {
+          "Content-Type": "application/json",
+        },
       },
-    });
+    );
 
     if (!response.ok) {
-      throw new Error('Token refresh failed');
+      throw new Error("Token refresh failed");
     }
 
     const data = await response.json();
-    
+
     // Update user data with new expiration
     if (data.expiresAt) {
       updateUserData({ expiresAt: data.expiresAt });
     }
-    
+
     return true;
   } catch (error) {
-    console.error('Token refresh error:', error);
+    console.error("Token refresh error:", error);
     await clearAuthData();
     return false;
   }
