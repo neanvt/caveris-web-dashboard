@@ -1096,7 +1096,6 @@ export function CandidatesContent() {
               >
                 Show More Filtered Results ({filteredCandidates.length - visibleCount} hidden)
               </Button>
-              </Button>
             </div>
           )}
         </CardContent>
