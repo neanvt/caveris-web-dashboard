@@ -7,12 +7,12 @@ export async function AdminLayout({ children }: { children: React.ReactNode }) {
   const session = await getAuthSession();
 
   if (!session) {
-    redirect("/login" as any);
+    redirect("/login");
   }
 
   // Ensure user has admin role
   if (session.role !== "admin") {
-    redirect("/login" as any);
+    redirect("/login");
   }
 
   const userData = {

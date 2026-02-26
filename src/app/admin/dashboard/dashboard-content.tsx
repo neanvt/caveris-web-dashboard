@@ -183,7 +183,7 @@ export function AdminDashboardContent() {
         </div>
         <div className="flex gap-3">
           <Button
-            onClick={() => router.push("/admin/exams/create" as any)}
+            onClick={() => router.push("/admin/exams/create")}
             className="bg-green-600 hover:bg-green-700"
           >
             <Plus className="mr-2 h-4 w-4" />
@@ -364,7 +364,7 @@ export function AdminDashboardContent() {
         <CardContent>
           <div className="grid grid-cols-1 gap-3 md:grid-cols-2 lg:grid-cols-4">
             <Button
-              onClick={() => router.push("/admin/exams/create" as any)}
+              onClick={() => router.push("/admin/exams/create")}
               variant="outline"
               className="h-auto flex-col py-4"
             >
@@ -389,7 +389,7 @@ export function AdminDashboardContent() {
             <Button
               onClick={() => {
                 // TODO: Navigate to verifiers page
-                router.push("/admin/verifiers" as any);
+                router.push("/admin/verifiers");
               }}
               variant="outline"
               className="h-auto flex-col py-4"
@@ -399,7 +399,7 @@ export function AdminDashboardContent() {
               <span className="text-xs text-gray-500">Add new verifier</span>
             </Button>
             <Button
-              onClick={() => router.push("/admin/monitoring" as any)}
+              onClick={() => router.push("/admin/monitoring")}
               variant="outline"
               className="h-auto flex-col py-4"
             >

@@ -129,7 +129,7 @@ export function ExamsContent() {
           <p className="text-gray-600">Manage your examination programs</p>
         </div>
         <Button
-          onClick={() => router.push("/admin/exams/create" as any)}
+          onClick={() => router.push("/admin/exams/create")}
           className="bg-green-600 hover:bg-green-700"
         >
           <Plus className="mr-2 h-4 w-4" />
@@ -186,7 +186,7 @@ export function ExamsContent() {
               </p>
               {!searchQuery && statusFilter === "all" && (
                 <Button
-                  onClick={() => router.push("/admin/exams/create" as any)}
+                  onClick={() => router.push("/admin/exams/create")}
                   className="mt-4 bg-green-600 hover:bg-green-700"
                 >
                   <Plus className="mr-2 h-4 w-4" />
@@ -245,7 +245,7 @@ export function ExamsContent() {
                         <Button
                           variant="outline"
                           size="sm"
-                          onClick={() => router.push(`/admin/exams/${exam.id}` as any)}
+                          onClick={() => router.push(`/admin/exams/${exam.id}`)}
                         >
                           <Eye className="h-4 w-4" />
                         </Button>
@@ -253,7 +253,7 @@ export function ExamsContent() {
                           variant="outline"
                           size="sm"
                           onClick={() =>
-                            router.push(`/admin/exams/${exam.id}/edit` as any)
+                            router.push(`/admin/exams/${exam.id}/edit`)
                           }
                         >
                           <Edit className="h-4 w-4" />

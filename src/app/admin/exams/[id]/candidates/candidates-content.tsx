@@ -20,7 +20,7 @@ export function ExamCandidatesContent({ examId }: { examId: string }) {
       <div className="flex items-center justify-between mb-6">
         <Button
           variant="ghost"
-          onClick={() => router.push(`/admin/exams/${examId}` as any)}
+          onClick={() => router.push(`/admin/exams/${examId}`)}
         >
           <ArrowLeft className="mr-2 h-4 w-4" />
           Back to Exam Details

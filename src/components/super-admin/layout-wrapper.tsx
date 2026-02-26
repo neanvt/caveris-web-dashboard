@@ -11,12 +11,12 @@ export async function SuperAdminLayout({
   const session = await getAuthSession();
 
   if (!session) {
-    redirect("/login" as any);
+    redirect("/login");
   }
 
   // Ensure user has super_admin role
   if (session.role !== "super_admin") {
-    redirect("/login" as any);
+    redirect("/login");
   }
 
   const userData = {

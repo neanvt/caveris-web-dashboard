@@ -109,7 +109,7 @@ export function EditExamContent({ examId }: { examId: string }) {
         description: "Could not load exam details",
         variant: "destructive",
       });
-      router.push("/admin/exams" as any);
+      router.push("/admin/exams");
     } finally {
       setLoading(false);
     }
@@ -143,7 +143,7 @@ export function EditExamContent({ examId }: { examId: string }) {
       });
 
       // Redirect to exams list
-      router.push("/admin/exams" as any);
+      router.push("/admin/exams");
     } catch (error: unknown) {
       console.error("Error updating exam:", error);
       toast({
@@ -173,7 +173,7 @@ export function EditExamContent({ examId }: { examId: string }) {
       <div className="w-full max-w-3xl">
         <Button
           variant="ghost"
-          onClick={() => router.push("/admin/exams" as any)}
+          onClick={() => router.push("/admin/exams")}
           className="mb-6"
         >
           <ArrowLeft className="mr-2 h-4 w-4" />
