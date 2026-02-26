@@ -94,7 +94,7 @@ export function CreateExamContent() {
       });
 
       // Redirect to exams list
-      router.push("/admin/exams");
+      router.push("/admin/exams" as any);
     } catch (error: unknown) {
       console.error("Error creating exam:", error);
       toast({
@@ -116,7 +116,7 @@ export function CreateExamContent() {
       <div className="w-full max-w-3xl">
         <Button
           variant="ghost"
-          onClick={() => router.push("/admin/exams")}
+          onClick={() => router.push("/admin/exams" as any)}
           className="mb-6"
         >
           <ArrowLeft className="mr-2 h-4 w-4" />
@@ -329,7 +329,7 @@ export function CreateExamContent() {
                   <Button
                     type="button"
                     variant="outline"
-                    onClick={() => router.push("/admin/exams")}
+                    onClick={() => router.push("/admin/exams" as any)}
                     disabled={isSubmitting}
                   >
                     Cancel

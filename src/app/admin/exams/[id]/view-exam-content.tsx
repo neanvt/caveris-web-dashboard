@@ -98,7 +98,7 @@ export function ViewExamContent({ examId }: { examId: string }) {
                   ? "There was an issue loading this exam."
                   : "This exam may have been deleted or doesn't exist."}
               </p>
-              <Button onClick={() => router.push("/admin/exams")}>
+              <Button onClick={() => router.push("/admin/exams" as any)}>
                 <ArrowLeft className="mr-2 h-4 w-4" />
                 Back to Exams
               </Button>
@@ -114,12 +114,12 @@ export function ViewExamContent({ examId }: { examId: string }) {
       {/* Header */}
       <div className="w-full max-w-4xl">
         <div className="flex items-center justify-between mb-6">
-          <Button variant="ghost" onClick={() => router.push("/admin/exams")}>
+          <Button variant="ghost" onClick={() => router.push("/admin/exams" as any)}>
             <ArrowLeft className="mr-2 h-4 w-4" />
             Back to Exams
           </Button>
           <Button
-            onClick={() => router.push(`/admin/exams/${examId}/edit`)}
+            onClick={() => router.push(`/admin/exams/${examId}/edit` as any)}
             className="bg-green-600 hover:bg-green-700"
           >
             <Edit className="mr-2 h-4 w-4" />
@@ -200,7 +200,7 @@ export function ViewExamContent({ examId }: { examId: string }) {
               <Button
                 variant="outline"
                 className="w-full"
-                onClick={() => router.push(`/admin/exams/${examId}/candidates`)}
+                onClick={() => router.push(`/admin/exams/${examId}/candidates` as any)}
               >
                 View Candidates
               </Button>
@@ -216,7 +216,7 @@ export function ViewExamContent({ examId }: { examId: string }) {
               <Button
                 variant="outline"
                 className="w-full"
-                onClick={() => router.push(`/admin/exams/${examId}/centres`)}
+                onClick={() => router.push(`/admin/exams/${examId}/centres` as any)}
               >
                 View Centres
               </Button>
@@ -232,7 +232,7 @@ export function ViewExamContent({ examId }: { examId: string }) {
               <Button
                 variant="outline"
                 className="w-full"
-                onClick={() => router.push(`/admin/exams/${examId}/verifiers`)}
+                onClick={() => router.push(`/admin/exams/${examId}/verifiers` as any)}
               >
                 Assign Verifiers
               </Button>
@@ -248,7 +248,7 @@ export function ViewExamContent({ examId }: { examId: string }) {
               <Button
                 variant="outline"
                 className="w-full"
-                onClick={() => router.push(`/admin/exams/${examId}/managers`)}
+                onClick={() => router.push(`/admin/exams/${examId}/managers` as any)}
               >
                 Assign Managers
               </Button>

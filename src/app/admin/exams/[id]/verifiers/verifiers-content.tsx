@@ -20,7 +20,7 @@ export function ExamVerifiersContent({ examId }: { examId: string }) {
       <div className="flex items-center justify-between mb-6">
         <Button
           variant="ghost"
-          onClick={() => router.push(`/admin/exams/${examId}`)}
+          onClick={() => router.push(`/admin/exams/${examId}` as any)}
         >
           <ArrowLeft className="mr-2 h-4 w-4" />
           Back to Exam Details

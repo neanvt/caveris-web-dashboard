@@ -485,7 +485,7 @@ export function VerifiersContent() {
             Bulk Import
           </Button>
           <Button
-            onClick={() => router.push("/admin/verifiers/bulk-assign")}
+            onClick={() => router.push("/admin/verifiers/bulk-assign" as any)}
             variant="outline"
             className="border-green-600 text-green-600 hover:bg-green-50"
           >
