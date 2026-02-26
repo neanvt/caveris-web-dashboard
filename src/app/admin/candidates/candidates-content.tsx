@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import Image from "next/image";
 import { createClient } from "@/lib/supabase/client";
 import { useRouter } from "next/navigation";
 import {
@@ -951,10 +952,13 @@ export function CandidatesContent() {
                 {displayedCandidates.map((candidate) => (
                   <TableRow key={candidate.id}>
                     <TableCell>
-                      <img
-                        src={getSecurePhotoUrl(candidate)}
+                      <Image
+                        src={getSecurePhotoUrl(candidate) ?? "/placeholder-avatar.png"}
                         alt={candidate.full_name}
+                        width={48}
+                        height={48}
                         className="h-12 w-12 rounded-full object-cover"
+                        unoptimized
                         onError={(e) => {
                           const target = e.currentTarget;
                           target.onerror = null;
@@ -1614,7 +1618,7 @@ export function CandidatesContent() {
                     ) : selectedCandidate.photo_url ? (
                       /* Show EXISTING photo */
                       <img
-                        src={getSecurePhotoUrl(selectedCandidate)}
+                        src={getSecurePhotoUrl(selectedCandidate) ?? undefined}
                         alt="Current photo"
                         className="w-32 h-32 object-cover rounded-lg border-2 border-gray-300"
                         onError={(e) => {
