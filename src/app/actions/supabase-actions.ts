@@ -1559,3 +1559,255 @@ export async function createManagerAssignmentAction(
 
   return { success: true };
 }
+
+// ============================================================
+// MANAGER DASHBOARD ACTIONS
+// ============================================================
+
+/**
+ * Get the dashboard overview stats for the logged-in manager.
+ */
+export async function getManagerDashboardStats() {
+  const session = await getAuthSession();
+  if (!session || session.role !== "manager") return null;
+
+  const supabase = await createAdminClient();
+
+  const { data: assignments, error: assignmentsError } = await supabase
+    .from("manager_centre_assignments")
+    .select("centre_id")
+    .eq("manager_id", session.userId);
+
+  if (assignmentsError) {
+    console.error("Error fetching manager assignments:", assignmentsError);
+    return null;
+  }
+
+  if (!assignments || assignments.length === 0) {
+    return { totalCentres: 0, totalCandidates: 0, verifiedCandidates: 0, pendingCandidates: 0 };
+  }
+
+  const centreIds = [...new Set(assignments.map((a) => a.centre_id))];
+
+  const [totalResult, verifiedResult] = await Promise.all([
+    supabase.from("candidates").select("id", { count: "exact", head: true }).in("centre_id", centreIds),
+    supabase.from("candidates").select("id", { count: "exact", head: true }).in("centre_id", centreIds).eq("verification_status", "verified"),
+  ]);
+
+  const total = totalResult.count || 0;
+  const verified = verifiedResult.count || 0;
+
+  return { totalCentres: centreIds.length, totalCandidates: total, verifiedCandidates: verified, pendingCandidates: Math.max(0, total - verified) };
+}
+
+/**
+ * Get centres assigned to the logged-in manager with candidate counts.
+ */
+export async function getManagerCentres() {
+  const session = await getAuthSession();
+  if (!session || session.role !== "manager") return [];
+
+  const supabase = await createAdminClient();
+
+  const { data: assignments, error } = await supabase
+    .from("manager_centre_assignments")
+    .select(`
+      centre_id,
+      exam_id,
+      master_centres!mca_to_centres_fk(id, centre_name, centre_code, city, address),
+      exams!mca_to_exams_fk(id, exam_name, exam_code)
+    `)
+    .eq("manager_id", session.userId);
+
+  if (error || !assignments || assignments.length === 0) return [];
+
+  const centreMap = new Map<string, any>();
+  assignments.forEach((a) => {
+    if (!centreMap.has(a.centre_id)) {
+      centreMap.set(a.centre_id, {
+        centre_id: a.centre_id,
+        centre_name: (a.master_centres as any)?.centre_name || "Unknown",
+        centre_code: (a.master_centres as any)?.centre_code || "",
+        city: (a.master_centres as any)?.city || "",
+        address: (a.master_centres as any)?.address || "",
+        exams: [],
+      });
+    }
+    const exam = a.exams as any;
+    if (exam) {
+      centreMap.get(a.centre_id).exams.push({ exam_id: exam.id, exam_name: exam.exam_name, exam_code: exam.exam_code });
+    }
+  });
+
+  const centres = Array.from(centreMap.values());
+  const centreIds = centres.map((c) => c.centre_id);
+
+  const { data: candidates } = await supabase
+    .from("candidates")
+    .select("id, centre_id, verification_status")
+    .in("centre_id", centreIds);
+
+  return centres.map((centre) => {
+    const cc = (candidates || []).filter((c) => c.centre_id === centre.centre_id);
+    const total = cc.length;
+    const verified = cc.filter((c) => c.verification_status === "verified").length;
+    return { ...centre, totalCandidates: total, verifiedCandidates: verified, pendingCandidates: Math.max(0, total - verified) };
+  });
+}
+
+/**
+ * Get city-wise candidate stats for the logged-in manager.
+ */
+export async function getManagerCityStats() {
+  const session = await getAuthSession();
+  if (!session || session.role !== "manager") return [];
+
+  const supabase = await createAdminClient();
+
+  const { data: assignments } = await supabase
+    .from("manager_centre_assignments")
+    .select("centre_id")
+    .eq("manager_id", session.userId);
+
+  if (!assignments || assignments.length === 0) return [];
+
+  const allowedCentreIds = [...new Set(assignments.map((a) => a.centre_id))];
+
+  const { data: centres } = await supabase
+    .from("master_centres")
+    .select("id, city")
+    .in("id", allowedCentreIds);
+
+  const centreToCity = new Map<string, string>();
+  (centres || []).forEach((c) => centreToCity.set(c.id, c.city || "Unknown"));
+
+  const { data: candidates } = await supabase
+    .from("candidates")
+    .select("id, centre_id, verification_status")
+    .in("centre_id", allowedCentreIds);
+
+  const cityMap = new Map<string, { total: number; verified: number }>();
+  (candidates || []).forEach((c) => {
+    const city = centreToCity.get(c.centre_id) || "Unknown";
+    if (!cityMap.has(city)) cityMap.set(city, { total: 0, verified: 0 });
+    const stats = cityMap.get(city)!;
+    stats.total += 1;
+    if (c.verification_status === "verified") stats.verified += 1;
+  });
+
+  return Array.from(cityMap.entries())
+    .map(([city, stats]) => ({
+      city,
+      totalCandidates: stats.total,
+      verifiedCandidates: stats.verified,
+      pendingCandidates: Math.max(0, stats.total - stats.verified),
+    }))
+    .sort((a, b) => a.city.localeCompare(b.city));
+}
+
+/**
+ * Get candidates for the manager filtered by centreId or city.
+ */
+export async function getManagerCandidates(centreId?: string, city?: string) {
+  const session = await getAuthSession();
+  if (!session || session.role !== "manager") return [];
+
+  const supabase = await createAdminClient();
+
+  const { data: assignments } = await supabase
+    .from("manager_centre_assignments")
+    .select("centre_id")
+    .eq("manager_id", session.userId);
+
+  if (!assignments || assignments.length === 0) return [];
+
+  let allowedCentreIds = [...new Set(assignments.map((a) => a.centre_id))];
+
+  if (centreId) {
+    if (!allowedCentreIds.includes(centreId)) return [];
+    allowedCentreIds = [centreId];
+  } else if (city) {
+    const { data: centresInCity } = await supabase
+      .from("master_centres")
+      .select("id")
+      .in("id", allowedCentreIds)
+      .eq("city", city);
+    allowedCentreIds = (centresInCity || []).map((c) => c.id);
+    if (allowedCentreIds.length === 0) return [];
+  }
+
+  const { data, error } = await supabase
+    .from("candidates")
+    .select(`
+      id, roll_number, full_name, father_name, date_of_birth, gender,
+      aadhaar_number, address, email, phone, photo_url,
+      verification_status, verification_attempts, centre_id, exam_id,
+      master_centres!candidates_centre_id_fkey(id, centre_name, city),
+      exams!candidates_exam_id_fkey(id, exam_name, exam_code)
+    `)
+    .in("centre_id", allowedCentreIds)
+    .order("full_name", { ascending: true });
+
+  if (error) {
+    console.error("Error fetching manager candidates:", error);
+    return [];
+  }
+
+  return (data || []).map((c) => ({
+    ...c,
+    centre_name: (c.master_centres as any)?.centre_name || "",
+    city: (c.master_centres as any)?.city || "",
+    exam_name: (c.exams as any)?.exam_name || "",
+    exam_code: (c.exams as any)?.exam_code || "",
+  }));
+}
+
+/**
+ * Get a single candidate's full details including latest verification record.
+ */
+export async function getManagerCandidateDetail(candidateId: string) {
+  const session = await getAuthSession();
+  if (!session || session.role !== "manager") return null;
+
+  const supabase = await createAdminClient();
+
+  const { data: assignments } = await supabase
+    .from("manager_centre_assignments")
+    .select("centre_id")
+    .eq("manager_id", session.userId);
+
+  const allowedCentreIds = (assignments || []).map((a) => a.centre_id);
+
+  const { data: candidate, error } = await supabase
+    .from("candidates")
+    .select(`
+      id, roll_number, full_name, father_name, date_of_birth, gender,
+      aadhaar_number, address, email, phone, photo_url,
+      verification_status, verification_attempts, centre_id, exam_id,
+      master_centres!candidates_centre_id_fkey(id, centre_name, centre_code, city, address),
+      exams!candidates_exam_id_fkey(id, exam_name, exam_code)
+    `)
+    .eq("id", candidateId)
+    .in("centre_id", allowedCentreIds)
+    .single();
+
+  if (error || !candidate) return null;
+
+  const { data: verifications } = await supabase
+    .from("verifications")
+    .select("*")
+    .eq("candidate_id", candidateId)
+    .order("created_at", { ascending: false })
+    .limit(1);
+
+  return {
+    ...candidate,
+    centre_name: (candidate.master_centres as any)?.centre_name || "",
+    centre_code: (candidate.master_centres as any)?.centre_code || "",
+    city: (candidate.master_centres as any)?.city || "",
+    centre_address: (candidate.master_centres as any)?.address || "",
+    exam_name: (candidate.exams as any)?.exam_name || "",
+    exam_code: (candidate.exams as any)?.exam_code || "",
+    latestVerification: verifications?.[0] || null,
+  };
+}
