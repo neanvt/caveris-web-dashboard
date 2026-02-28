@@ -343,14 +343,19 @@ function CandidateDetailModal({ candidateId, onClose }: { candidateId: string; o
                     )}
                   </div>
 
+
                   {/* ── FACE ── */}
                   {(detail.latestVerification.verification_method === "face" ||
                     detail.latestVerification.verification_percentage != null ||
-                    detail.latestVerification.confidence_score != null) && (
-                    <div className="rounded-lg bg-blue-50 border border-blue-100 p-3 space-y-2">
+                    detail.latestVerification.confidence_score != null ||
+                    detail.latestVerification.captured_photo ||
+                    detail.latestVerification.photo_captured_url) && (
+                    <div className="rounded-lg bg-blue-50 border border-blue-100 p-3 space-y-3">
                       <p className="text-xs font-semibold text-blue-700 uppercase tracking-wide">
                         Face Verification
                       </p>
+
+                      {/* Scores */}
                       <div className="grid grid-cols-2 gap-3">
                         {detail.latestVerification.verification_percentage != null && (
                           <div>
@@ -369,22 +374,73 @@ function CandidateDetailModal({ candidateId, onClose }: { candidateId: string; o
                           </div>
                         )}
                       </div>
+
+                      {/* Side-by-side: Stored photo vs Captured photo */}
+                      {(detail.photo_url || detail.latestVerification.captured_photo || detail.latestVerification.photo_captured_url) && (
+                        <div className="grid grid-cols-2 gap-3">
+                          {/* Stored / Registered photo */}
+                          <div className="text-center">
+                            <p className="text-xs text-blue-600 mb-1.5 font-medium">Registered Photo</p>
+                            {detail.photo_url ? (
+                              <img
+                                src={detail.photo_url}
+                                alt="Stored"
+                                className="w-full max-w-[140px] mx-auto aspect-square rounded-xl object-cover border-2 border-blue-200 shadow"
+                              />
+                            ) : (
+                              <div className="w-full max-w-[140px] mx-auto aspect-square rounded-xl bg-gray-100 flex items-center justify-center border-2 border-dashed border-gray-300">
+                                <User className="h-10 w-10 text-gray-400" />
+                              </div>
+                            )}
+                          </div>
+
+                          {/* Captured photo during verification */}
+                          <div className="text-center">
+                            <p className="text-xs text-blue-600 mb-1.5 font-medium">Captured at Verification</p>
+                            {(() => {
+                              const capturedUrl = detail.latestVerification.photo_captured_url;
+                              const capturedBase64 = detail.latestVerification.captured_photo;
+                              // Use URL if available, otherwise build data URL from base64
+                              const src = capturedUrl
+                                ? capturedUrl
+                                : capturedBase64
+                                  ? (capturedBase64.startsWith("data:") ? capturedBase64 : `data:image/jpeg;base64,${capturedBase64}`)
+                                  : null;
+                              return src ? (
+                                <img
+                                  src={src}
+                                  alt="Captured"
+                                  className="w-full max-w-[140px] mx-auto aspect-square rounded-xl object-cover border-2 border-blue-300 shadow"
+                                />
+                              ) : (
+                                <div className="w-full max-w-[140px] mx-auto aspect-square rounded-xl bg-gray-100 flex items-center justify-center border-2 border-dashed border-gray-300">
+                                  <p className="text-xs text-gray-400 text-center px-2">Not captured</p>
+                                </div>
+                              );
+                            })()}
+                          </div>
+                        </div>
+                      )}
                     </div>
                   )}
 
+
+
                   {/* ── FINGERPRINT ── */}
                   {(detail.latestVerification.verification_method === "fingerprint" ||
-                    detail.latestVerification.fingerprint_match_score != null) && (
-                    <div className="rounded-lg bg-purple-50 border border-purple-100 p-3 space-y-2">
+                    detail.latestVerification.fingerprint_match_score != null ||
+                    detail.latestVerification.captured_fingerprint_vector) && (
+                    <div className="rounded-lg bg-purple-50 border border-purple-100 p-3 space-y-3">
                       <p className="text-xs font-semibold text-purple-700 uppercase tracking-wide">
                         Fingerprint Verification
                       </p>
+
+                      {/* Scores + finger name */}
                       <div className="grid grid-cols-2 gap-3">
                         {detail.latestVerification.fingerprint_match_score != null && (
                           <div>
                             <p className="text-xs text-purple-600">Match Score</p>
                             <p className={`text-base ${scoreColor(detail.latestVerification.fingerprint_match_score)}`}>
-                              {/* fingerprint_match_score is INTEGER 0-100, no * 100 needed */}
                               {fmtScore(detail.latestVerification.fingerprint_match_score)}
                             </p>
                           </div>
@@ -406,8 +462,44 @@ function CandidateDetailModal({ candidateId, onClose }: { candidateId: string; o
                           </div>
                         )}
                       </div>
+
+                      {/* Captured fingerprint image */}
+                      {detail.latestVerification.captured_fingerprint_vector && (
+                        <div>
+                          <p className="text-xs text-purple-600 mb-1.5 font-medium">Captured Fingerprint Image</p>
+                          {(() => {
+                            const raw = detail.latestVerification.captured_fingerprint_vector as string;
+                            // The Mantra SDK returns a base64 BMP image.
+                            // Try to render it; support both raw base64 and URLs
+                            const src = raw.startsWith("http")
+                              ? raw
+                              : raw.startsWith("data:")
+                                ? raw
+                                : `data:image/bmp;base64,${raw}`;
+                            return (
+                              <img
+                                src={src}
+                                alt="Captured fingerprint"
+                                className="h-36 w-28 mx-auto object-contain rounded-lg border-2 border-purple-200 bg-white shadow"
+                                onError={(e) => {
+                                  // fallback: try png if bmp fails
+                                  const t = e.currentTarget;
+                                  if (t.src.startsWith("data:image/bmp")) {
+                                    t.src = `data:image/png;base64,${raw}`;
+                                  } else {
+                                    t.style.display = "none";
+                                    t.nextElementSibling?.classList.remove("hidden");
+                                  }
+                                }}
+                              />
+                            );
+                          })()}
+                          <p className="hidden text-xs text-center text-gray-400 mt-1">Image could not be displayed</p>
+                        </div>
+                      )}
                     </div>
                   )}
+
 
                   {/* ── IRIS ── */}
                   {(detail.latestVerification.verification_method === "iris" ||
