@@ -235,48 +235,59 @@ export function ManagerDashboardContent() {
 
       {/* Charts Row */}
       <div className="grid grid-cols-1 gap-6 lg:grid-cols-3">
-        {/* Donut — Verified vs Pending */}
-        <Card>
-          <CardHeader>
-            <CardTitle className="text-base flex items-center gap-2">
-              <TrendingUp className="h-4 w-4 text-indigo-600" />
-              Verification Status
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="relative">
-              <ResponsiveContainer width="100%" height={200}>
-                <PieChart>
-                  <Pie
-                    data={pieData}
-                    cx="50%"
-                    cy="50%"
-                    innerRadius={55}
-                    outerRadius={85}
-                    paddingAngle={3}
-                    dataKey="value"
-                  >
-                    {pieData.map((_, index) => (
-                      <Cell key={index} fill={PIE_COLORS[index]} />
-                    ))}
-                  </Pie>
-                  <Tooltip formatter={(val) => (val ?? 0).toLocaleString()} />
-                </PieChart>
-              </ResponsiveContainer>
-              {/* Center label */}
-              <div className="absolute inset-0 flex flex-col items-center justify-center pointer-events-none">
-                <p className="text-2xl font-bold text-indigo-700">
-                  {getVerificationPercent(stats?.verifiedCandidates || 0, stats?.totalCandidates || 0)}%
-                </p>
-                <p className="text-xs text-gray-500">Done</p>
+        {/* Donut — Verified vs Pending — CLICKABLE → Analytics */}
+        <button
+          onClick={() => router.push("/manager/analytics" as any)}
+          className="group text-left"
+        >
+          <Card className="cursor-pointer hover:shadow-lg transition-all hover:-translate-y-0.5 h-full">
+            <CardHeader>
+              <CardTitle className="text-base flex items-center gap-2">
+                <TrendingUp className="h-4 w-4 text-indigo-600" />
+                Verification Status
+                <span className="ml-auto text-xs font-normal text-indigo-500 group-hover:underline flex items-center gap-0.5">
+                  Drill down <ChevronRight className="h-3 w-3" />
+                </span>
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className="relative">
+                <ResponsiveContainer width="100%" height={200}>
+                  <PieChart>
+                    <Pie
+                      data={pieData}
+                      cx="50%"
+                      cy="50%"
+                      innerRadius={55}
+                      outerRadius={85}
+                      paddingAngle={3}
+                      dataKey="value"
+                    >
+                      {pieData.map((_, index) => (
+                        <Cell key={index} fill={PIE_COLORS[index]} />
+                      ))}
+                    </Pie>
+                    <Tooltip formatter={(val) => (val ?? 0).toLocaleString()} />
+                  </PieChart>
+                </ResponsiveContainer>
+                {/* Center label */}
+                <div className="absolute inset-0 flex flex-col items-center justify-center pointer-events-none">
+                  <p className="text-2xl font-bold text-indigo-700">
+                    {getVerificationPercent(stats?.verifiedCandidates || 0, stats?.totalCandidates || 0)}%
+                  </p>
+                  <p className="text-xs text-gray-500">Done</p>
+                </div>
               </div>
-            </div>
-            <div className="mt-2 flex justify-center gap-4 text-xs">
-              <div className="flex items-center gap-1"><span className="h-3 w-3 rounded-full bg-green-500 inline-block" />Verified</div>
-              <div className="flex items-center gap-1"><span className="h-3 w-3 rounded-full bg-amber-500 inline-block" />Pending</div>
-            </div>
-          </CardContent>
-        </Card>
+              <div className="mt-2 flex justify-center gap-4 text-xs">
+                <div className="flex items-center gap-1"><span className="h-3 w-3 rounded-full bg-green-500 inline-block" />Verified</div>
+                <div className="flex items-center gap-1"><span className="h-3 w-3 rounded-full bg-amber-500 inline-block" />Pending</div>
+              </div>
+              <p className="text-center text-xs text-indigo-500 mt-2 opacity-0 group-hover:opacity-100 transition-opacity">
+                Click to see centre / city / shift breakdown →
+              </p>
+            </CardContent>
+          </Card>
+        </button>
 
         {/* Bar — Centre-wise */}
         <Card className="lg:col-span-2">

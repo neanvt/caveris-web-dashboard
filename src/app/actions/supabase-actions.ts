@@ -1918,3 +1918,295 @@ export async function getManagerCandidatesByShift(centreId: string, shiftId: str
     exam_code: (c.exams as any)?.exam_code || "",
   }));
 }
+
+// ============================================================
+// MANAGER ASSIGNMENT MANAGEMENT ACTIONS
+// ============================================================
+
+/**
+ * Get all centre/shift assignments for a specific manager (for admin management view).
+ */
+export async function getManagerAssignments(managerId: string) {
+  const session = await getAuthSession();
+  if (!session) return { error: "Unauthorized", data: [] };
+
+  const supabase = await createAdminClient();
+
+  const { data, error } = await supabase
+    .from("manager_centre_assignments")
+    .select(
+      `
+      id,
+      manager_id,
+      exam_id,
+      centre_id,
+      shift_id,
+      assigned_at,
+      exams!mca_to_exams_fk(id, exam_name, exam_code),
+      master_centres!mca_to_centres_fk(id, centre_name, centre_code, city),
+      master_shifts!mca_to_shifts_fk(id, shift_name, shift_code, start_time, end_time)
+    `,
+    )
+    .eq("manager_id", managerId)
+    .order("assigned_at", { ascending: false });
+
+  if (error) {
+    console.error("Error fetching manager assignments:", error);
+    return { error: error.message, data: [] };
+  }
+
+  const assignments = (data || []).map((a) => ({
+    id: a.id,
+    manager_id: a.manager_id,
+    exam_id: a.exam_id,
+    centre_id: a.centre_id,
+    shift_id: a.shift_id,
+    assigned_at: a.assigned_at,
+    exam_name: (a.exams as any)?.exam_name || null,
+    exam_code: (a.exams as any)?.exam_code || null,
+    centre_name: (a.master_centres as any)?.centre_name || "Unknown Centre",
+    centre_code: (a.master_centres as any)?.centre_code || "",
+    city: (a.master_centres as any)?.city || "",
+    shift_name: (a.master_shifts as any)?.shift_name || "Unknown Shift",
+    shift_code: (a.master_shifts as any)?.shift_code || "",
+    start_time: (a.master_shifts as any)?.start_time || null,
+    end_time: (a.master_shifts as any)?.end_time || null,
+  }));
+
+  return { data: assignments };
+}
+
+/**
+ * Delete a single manager centre/shift assignment by its ID.
+ */
+export async function deleteManagerAssignment(assignmentId: string) {
+  const session = await getAuthSession();
+  if (!session) return { success: false, error: "Unauthorized" };
+
+  const supabase = await createAdminClient();
+
+  const { error } = await supabase
+    .from("manager_centre_assignments")
+    .delete()
+    .eq("id", assignmentId);
+
+  if (error) {
+    console.error("Error deleting manager assignment:", error);
+    return { success: false, error: error.message };
+  }
+
+  return { success: true };
+}
+
+/**
+ * Get all master centres (not exam-scoped) for the admin assignment UI.
+ */
+export async function getMasterCentres() {
+  const session = await getAuthSession();
+  if (!session) return [];
+
+  const supabase = await createAdminClient();
+
+  const { data, error } = await supabase
+    .from("master_centres")
+    .select("id, centre_name, centre_code, city, state, address, is_active")
+    .eq("is_active", true)
+    .order("centre_name");
+
+  if (error) {
+    console.error("Error fetching master centres:", error);
+    return [];
+  }
+
+  return data || [];
+}
+
+/**
+ * Get all master shifts (not exam-scoped) for the admin assignment UI.
+ */
+export async function getMasterShifts() {
+  const session = await getAuthSession();
+  if (!session) return [];
+
+  const supabase = await createAdminClient();
+
+  const { data, error } = await supabase
+    .from("master_shifts")
+    .select("id, shift_name, shift_code, start_time, end_time, gate_open_time, gate_close_time, is_active, exam_id")
+    .eq("is_active", true)
+    .order("start_time");
+
+  if (error) {
+    console.error("Error fetching master shifts:", error);
+    return [];
+  }
+
+  return data || [];
+}
+
+/**
+ * Get shift-level stats aggregated across ALL centres assigned to this manager.
+ * Used for the shift-wise overview chart on the analytics page.
+ */
+export async function getManagerAllShiftsStats() {
+  const session = await getAuthSession();
+  if (!session || session.role !== "manager") return [];
+
+  const supabase = await createAdminClient();
+
+  // Get all centre assignments
+  const { data: assignments } = await supabase
+    .from("manager_centre_assignments")
+    .select(
+      "centre_id, shift_id, master_shifts!mca_to_shifts_fk(id, shift_name, shift_code, start_time, end_time)"
+    )
+    .eq("manager_id", session.userId);
+
+  if (!assignments || assignments.length === 0) return [];
+
+  // Build unique shifts map (shift_id → shift info)
+  const shiftMap = new Map<string, { shift_id: string; shift_name: string; shift_code: string; start_time: string | null; end_time: string | null; centre_ids: string[] }>();
+  assignments.forEach((a) => {
+    const shift = a.master_shifts as any;
+    if (!shift) return;
+    if (!shiftMap.has(shift.id)) {
+      shiftMap.set(shift.id, {
+        shift_id: shift.id,
+        shift_name: shift.shift_name,
+        shift_code: shift.shift_code,
+        start_time: shift.start_time,
+        end_time: shift.end_time,
+        centre_ids: [],
+      });
+    }
+    const entry = shiftMap.get(shift.id)!;
+    if (!entry.centre_ids.includes(a.centre_id)) {
+      entry.centre_ids.push(a.centre_id);
+    }
+  });
+
+  if (shiftMap.size === 0) return [];
+
+  const allCentreIds = [...new Set(assignments.map((a) => a.centre_id))];
+  const allShiftIds = Array.from(shiftMap.keys());
+
+  // Get all candidates grouped by shift
+  const { data: candidates } = await supabase
+    .from("candidates")
+    .select("shift_id, verification_status")
+    .in("centre_id", allCentreIds)
+    .in("shift_id", allShiftIds);
+
+  return Array.from(shiftMap.values()).map((shift) => {
+    const sc = (candidates || []).filter((c) => c.shift_id === shift.shift_id);
+    const total = sc.length;
+    const verified = sc.filter((c) => c.verification_status === "verified").length;
+    return {
+      shift_id: shift.shift_id,
+      shift_name: shift.shift_name,
+      shift_code: shift.shift_code,
+      start_time: shift.start_time,
+      end_time: shift.end_time,
+      centre_ids: shift.centre_ids,
+      totalCandidates: total,
+      verifiedCandidates: verified,
+      pendingCandidates: Math.max(0, total - verified),
+    };
+  });
+}
+
+/**
+ * Get centres and their stats for a specific city, for the city drill-down chart.
+ */
+export async function getManagerCentresByCity(city: string) {
+  const session = await getAuthSession();
+  if (!session || session.role !== "manager") return [];
+
+  const supabase = await createAdminClient();
+
+  const { data: assignments } = await supabase
+    .from("manager_centre_assignments")
+    .select("centre_id, master_centres!mca_to_centres_fk(id, centre_name, centre_code, city)")
+    .eq("manager_id", session.userId);
+
+  if (!assignments || assignments.length === 0) return [];
+
+  const cityCentres = assignments
+    .filter((a) => (a.master_centres as any)?.city === city)
+    .map((a) => ({
+      centre_id: a.centre_id,
+      centre_name: (a.master_centres as any)?.centre_name || "",
+      centre_code: (a.master_centres as any)?.centre_code || "",
+      city: (a.master_centres as any)?.city || "",
+    }))
+    .filter((c, i, arr) => arr.findIndex((x) => x.centre_id === c.centre_id) === i);
+
+  if (cityCentres.length === 0) return [];
+
+  const centreIds = cityCentres.map((c) => c.centre_id);
+  const { data: candidates } = await supabase
+    .from("candidates")
+    .select("centre_id, verification_status")
+    .in("centre_id", centreIds);
+
+  return cityCentres.map((centre) => {
+    const cc = (candidates || []).filter((c) => c.centre_id === centre.centre_id);
+    const total = cc.length;
+    const verified = cc.filter((c) => c.verification_status === "verified").length;
+    return {
+      ...centre,
+      totalCandidates: total,
+      verifiedCandidates: verified,
+      pendingCandidates: Math.max(0, total - verified),
+    };
+  });
+}
+
+/**
+ * Get centres that are assigned to this manager and have a specific shift,
+ * with candidate stats for that shift. Used for Shift → Centres drill-down.
+ */
+export async function getManagerCentresForShift(shiftId: string) {
+  const session = await getAuthSession();
+  if (!session || session.role !== "manager") return [];
+
+  const supabase = await createAdminClient();
+
+  const { data: assignments } = await supabase
+    .from("manager_centre_assignments")
+    .select("centre_id, master_centres!mca_to_centres_fk(id, centre_name, centre_code, city)")
+    .eq("manager_id", session.userId)
+    .eq("shift_id", shiftId);
+
+  if (!assignments || assignments.length === 0) return [];
+
+  const uniqueCentres = assignments
+    .map((a) => ({
+      centre_id: a.centre_id,
+      centre_name: (a.master_centres as any)?.centre_name || "",
+      centre_code: (a.master_centres as any)?.centre_code || "",
+      city: (a.master_centres as any)?.city || "",
+    }))
+    .filter((c, i, arr) => arr.findIndex((x) => x.centre_id === c.centre_id) === i);
+
+  if (uniqueCentres.length === 0) return [];
+
+  const centreIds = uniqueCentres.map((c) => c.centre_id);
+  const { data: candidates } = await supabase
+    .from("candidates")
+    .select("centre_id, verification_status")
+    .in("centre_id", centreIds)
+    .eq("shift_id", shiftId);
+
+  return uniqueCentres.map((centre) => {
+    const cc = (candidates || []).filter((c) => c.centre_id === centre.centre_id);
+    const total = cc.length;
+    const verified = cc.filter((c) => c.verification_status === "verified").length;
+    return {
+      ...centre,
+      totalCandidates: total,
+      verifiedCandidates: verified,
+      pendingCandidates: Math.max(0, total - verified),
+    };
+  });
+}

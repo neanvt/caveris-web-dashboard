@@ -8,6 +8,7 @@ import {
   MapPin,
   Users,
   BarChart3,
+  BarChart2,
   Shield,
   ChevronLeft,
   ChevronRight,
@@ -17,6 +18,7 @@ const navigation = [
   { name: "Dashboard", href: "/manager/dashboard", icon: LayoutDashboard },
   { name: "My Centres", href: "/manager/centres", icon: MapPin },
   { name: "Candidates", href: "/manager/candidates", icon: Users },
+  { name: "Analytics", href: "/manager/analytics", icon: BarChart2 },
   { name: "Reports", href: "/manager/reports", icon: BarChart3 },
 ];
 

@@ -1531,6 +1531,9 @@ export function ManagersContent() {
               setSelectedManager(null);
             }}
             manager={selectedManager}
+            onSuccess={() => {
+              loadManagers();
+            }}
           />
         </>
       )}

@@ -1,7 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
-import { createClient } from "@/lib/supabase/client";
+import { useState, useEffect, useCallback } from "react";
 import {
   Dialog,
   DialogContent,
@@ -18,16 +17,28 @@ import {
 } from "@/components/ui/select";
 import { Input } from "@/components/ui/input";
 import { Checkbox } from "@/components/ui/checkbox";
-import { useToast } from "@/hooks/use-toast";
+import { Badge } from "@/components/ui/badge";
+import { toast } from "sonner";
 import {
   Loader2,
   Calendar,
   MapPin,
   Clock,
-  User,
   CheckSquare,
+  Trash2,
+  Plus,
+  Building2,
+  RefreshCw,
+  AlertCircle,
 } from "lucide-react";
-import { format } from "date-fns";
+import {
+  getManagerAssignments,
+  deleteManagerAssignment,
+  getMasterCentres,
+  getMasterShifts,
+  getExams,
+} from "@/app/actions/supabase-actions";
+import { createClient } from "@/lib/supabase/client";
 
 interface Manager {
   id: string;
@@ -35,181 +46,145 @@ interface Manager {
   email: string;
 }
 
+interface MasterCentre {
+  id: string;
+  centre_name: string;
+  centre_code: string;
+  city: string;
+  state?: string;
+}
+
+interface MasterShift {
+  id: string;
+  shift_name: string;
+  shift_code: string;
+  start_time: string | null;
+  end_time: string | null;
+  exam_id?: string | null;
+}
+
 interface Exam {
   id: string;
   exam_name: string;
   exam_code: string;
-  start_date: string;
-  end_date: string;
 }
 
-interface Centre {
+interface Assignment {
   id: string;
+  exam_name: string | null;
+  exam_code: string | null;
   centre_name: string;
+  centre_code: string;
   city: string;
-  exam_id: string;
-}
-
-interface Shift {
-  id: string;
   shift_name: string;
-  start_time: string;
-  end_time: string;
-  centre_id: string;
+  shift_code: string;
+  start_time: string | null;
+  end_time: string | null;
+  assigned_at: string | null;
 }
 
 interface AssignManagerModalProps {
   open: boolean;
   onClose: () => void;
   manager: Manager;
+  onSuccess?: () => void;
 }
+
+type Tab = "current" | "new";
 
 export function AssignManagerModal({
   open,
   onClose,
   manager,
+  onSuccess,
 }: AssignManagerModalProps) {
-  const { toast } = useToast();
-  const [loading, setLoading] = useState(false);
-  const [submitting, setSubmitting] = useState(false);
+  const [activeTab, setActiveTab] = useState<Tab>("current");
 
+  // Data lists
+  const [assignments, setAssignments] = useState<Assignment[]>([]);
+  const [masterCentres, setMasterCentres] = useState<MasterCentre[]>([]);
+  const [masterShifts, setMasterShifts] = useState<MasterShift[]>([]);
   const [exams, setExams] = useState<Exam[]>([]);
-  const [allExams, setAllExams] = useState<Exam[]>([]);
-  const [centres, setCentres] = useState<Centre[]>([]);
-  const [shifts, setShifts] = useState<Shift[]>([]);
 
+  // Loading states
+  const [loadingAssignments, setLoadingAssignments] = useState(false);
+  const [loadingMeta, setLoadingMeta] = useState(false);
+  const [submitting, setSubmitting] = useState(false);
+  const [deletingId, setDeletingId] = useState<string | null>(null);
+
+  // New assignment form state
   const [selectedExam, setSelectedExam] = useState("");
+  const [selectedCentres, setSelectedCentres] = useState<Set<string>>(new Set());
   const [selectedShift, setSelectedShift] = useState("");
   const [assignmentDate, setAssignmentDate] = useState("");
-  const [examDateFilter, setExamDateFilter] = useState("");
-  const [selectedCentres, setSelectedCentres] = useState<Set<string>>(
-    new Set(),
-  );
+  const [centreSearch, setCentreSearch] = useState("");
 
+  const loadAssignments = useCallback(async () => {
+    setLoadingAssignments(true);
+    try {
+      const result = await getManagerAssignments(manager.id);
+      setAssignments(result.data || []);
+    } catch (e) {
+      console.error("Error loading assignments:", e);
+      toast.error("Failed to load current assignments");
+    } finally {
+      setLoadingAssignments(false);
+    }
+  }, [manager.id]);
+
+  // Load data when modal opens
   useEffect(() => {
     if (open) {
-      loadExams();
+      loadAssignments();
+      loadMetadata();
+      setActiveTab("current");
     }
-  }, [open]);
+  }, [open, loadAssignments]);
 
+  // Reset new assignment form when switching tabs
   useEffect(() => {
-    if (examDateFilter && allExams.length > 0) {
-      filterExamsByDate();
-    } else {
-      setExams(allExams);
-    }
-  }, [examDateFilter, allExams]);
-
-  useEffect(() => {
-    if (selectedExam) {
-      loadCentres();
-      setSelectedShift("");
+    if (activeTab === "new") {
+      setSelectedExam("");
       setSelectedCentres(new Set());
+      setSelectedShift("");
+      setAssignmentDate("");
+      setCentreSearch("");
     }
-  }, [selectedExam]);
+  }, [activeTab]);
 
-  useEffect(() => {
-    if (selectedExam && selectedCentres.size > 0) {
-      loadShifts();
-    }
-  }, [selectedExam, selectedCentres]);
-
-  const loadExams = async () => {
-    setLoading(true);
+  const loadMetadata = async () => {
+    setLoadingMeta(true);
     try {
-      const supabase = createClient();
-      const {
-        data: { user },
-      } = await supabase.auth.getUser();
-
-      if (!user) return;
-
-      const { data, error } = await supabase
-        .from("exams")
-        .select("id, exam_name, exam_code, start_date, end_date")
-        .eq("admin_id", user.id)
-        .in("status", ["scheduled", "ongoing", "active"])
-        .order("start_date", { ascending: true });
-
-      if (error) throw error;
-      setAllExams(data || []);
-      setExams(data || []);
-    } catch (error) {
-      console.error("Error loading exams:", error);
-      toast({
-        title: "Error",
-        description: "Failed to load exams",
-        variant: "destructive",
-      });
+      const [centresData, shiftsData, examsData] = await Promise.all([
+        getMasterCentres(),
+        getMasterShifts(),
+        getExams(),
+      ]);
+      setMasterCentres(centresData || []);
+      setMasterShifts(shiftsData || []);
+      setExams(examsData || []);
+    } catch (e) {
+      console.error("Error loading metadata:", e);
     } finally {
-      setLoading(false);
+      setLoadingMeta(false);
     }
   };
 
-  const filterExamsByDate = () => {
-    if (!examDateFilter) {
-      setExams(allExams);
-      return;
-    }
-
-    const filtered = allExams.filter((exam: Exam) => {
-      const filterDateStr = examDateFilter; // Format: YYYY-MM-DD
-      const startDateStr = exam.start_date.split("T")[0]; // Get YYYY-MM-DD part
-      const endDateStr = exam.end_date.split("T")[0]; // Get YYYY-MM-DD part
-
-      return filterDateStr >= startDateStr && filterDateStr <= endDateStr;
-    });
-
-    setExams(filtered);
-  };
-
-  const loadCentres = async () => {
+  const handleDelete = async (assignmentId: string) => {
+    setDeletingId(assignmentId);
     try {
-      const supabase = createClient();
-      const { data, error } = await supabase
-        .from("centres")
-        .select("id, centre_name, city, exam_id")
-        .eq("exam_id", selectedExam)
-        .order("centre_name");
-
-      if (error) throw error;
-      setCentres(data || []);
-    } catch (error) {
-      console.error("Error loading centres:", error);
-    }
-  };
-
-  const loadShifts = async () => {
-    try {
-      const supabase = createClient();
-
-      // Get shifts for ALL selected centres
-      const centreIds = Array.from(selectedCentres);
-      const { data, error } = await supabase
-        .from("shifts")
-        .select("id, shift_name, start_time, end_time, centre_id")
-        .in("centre_id", centreIds)
-        .order("start_time");
-
-      if (error) throw error;
-
-      // Remove duplicates based on shift_name and time
-      const uniqueShifts = data?.reduce((acc: Shift[], current) => {
-        const exists = acc.find(
-          (shift) =>
-            shift.shift_name === current.shift_name &&
-            shift.start_time === current.start_time &&
-            shift.end_time === current.end_time,
-        );
-        if (!exists) {
-          acc.push(current);
-        }
-        return acc;
-      }, []);
-
-      setShifts(uniqueShifts || []);
-    } catch (error) {
-      console.error("Error loading shifts:", error);
+      const result = await deleteManagerAssignment(assignmentId);
+      if (result.success) {
+        toast.success("Assignment removed successfully");
+        setAssignments((prev) => prev.filter((a) => a.id !== assignmentId));
+        onSuccess?.();
+      } else {
+        toast.error(result.error || "Failed to remove assignment");
+      }
+    } catch {
+      toast.error("An unexpected error occurred");
+    } finally {
+      setDeletingId(null);
     }
   };
 
@@ -223,31 +198,25 @@ export function AssignManagerModal({
     setSelectedCentres(newSelected);
   };
 
-  const toggleAll = () => {
-    if (selectedCentres.size === centres.length) {
-      setSelectedCentres(new Set());
+  const toggleAllCentres = () => {
+    const filtered = filteredCentres;
+    const allSelected = filtered.every((c) => selectedCentres.has(c.id));
+    const newSelected = new Set(selectedCentres);
+    if (allSelected) {
+      filtered.forEach((c) => newSelected.delete(c.id));
     } else {
-      setSelectedCentres(new Set(centres.map((c) => c.id)));
+      filtered.forEach((c) => newSelected.add(c.id));
     }
+    setSelectedCentres(newSelected);
   };
 
-  const onSubmit = async () => {
-    if (
-      !selectedExam ||
-      selectedCentres.size === 0 ||
-      !selectedShift ||
-      !assignmentDate
-    ) {
-      toast({
-        title: "Missing Information",
-        description: "Please select exam, centres, shift, and date",
-        variant: "destructive",
-      });
+  const handleSubmit = async () => {
+    if (selectedCentres.size === 0 || !selectedShift || !assignmentDate) {
+      toast.error("Please select at least one centre, a shift, and a date");
       return;
     }
 
     setSubmitting(true);
-
     try {
       const supabase = createClient();
       const {
@@ -256,268 +225,492 @@ export function AssignManagerModal({
 
       if (!user) throw new Error("Not authenticated");
 
-      // Create assignments for all selected centres
-      const assignments = Array.from(selectedCentres).map((centreId) => ({
-        manager_id: manager.id,
-        exam_id: selectedExam,
-        centre_id: centreId,
-        shift_id: selectedShift,
-        assignment_date: assignmentDate,
-        assigned_by: user.id,
-      }));
+      const centreIds = Array.from(selectedCentres);
+      let successCount = 0;
+      let skipCount = 0;
 
-      // Check for duplicates
-      for (const assignment of assignments) {
+      for (const centreId of centreIds) {
+        // Check for existing duplicate
         const { data: existing } = await supabase
           .from("manager_centre_assignments")
           .select("id")
-          .eq("manager_id", assignment.manager_id)
-          .eq("exam_id", assignment.exam_id)
-          .eq("centre_id", assignment.centre_id)
-          .eq("shift_id", assignment.shift_id)
-          .eq("assignment_date", assignment.assignment_date)
-          .limit(1);
+          .eq("manager_id", manager.id)
+          .eq("centre_id", centreId)
+          .eq("shift_id", selectedShift)
+          .eq("assigned_at", assignmentDate)
+          .maybeSingle();
 
-        if (existing && existing.length > 0) {
-          const centre = centres.find((c) => c.id === assignment.centre_id);
-          toast({
-            title: "Duplicate Assignment",
-            description: `Manager is already assigned to ${centre?.centre_name} for this exam, shift, and date`,
-            variant: "destructive",
-          });
-          setSubmitting(false);
-          return;
+        if (existing) {
+          skipCount++;
+          continue;
+        }
+
+        const record: {
+          manager_id: string;
+          centre_id: string;
+          shift_id: string;
+          assigned_at: string;
+          assigned_by: string;
+          exam_id?: string;
+        } = {
+          manager_id: manager.id,
+          centre_id: centreId,
+          shift_id: selectedShift,
+          assigned_at: assignmentDate,
+          assigned_by: user.id,
+        };
+
+        if (selectedExam && selectedExam !== "none") {
+          record.exam_id = selectedExam;
+        }
+
+        const { error } = await supabase
+          .from("manager_centre_assignments")
+          .insert(record);
+
+        if (error) {
+          console.error("Error creating assignment:", error);
+        } else {
+          successCount++;
         }
       }
 
-      // Insert all assignments
-      const { error } = await supabase
-        .from("manager_centre_assignments")
-        .insert(assignments);
-
-      if (error) throw error;
-
-      toast({
-        title: "Success",
-        description: `Assigned ${selectedCentres.size} centre(s) to ${manager.full_name}`,
-      });
-
-      // Reset form
-      setSelectedExam("");
-      setSelectedShift("");
-      setAssignmentDate("");
-      setSelectedCentres(new Set());
-      onClose();
-    } catch (error: any) {
-      console.error("Error creating assignment:", error);
-      toast({
-        title: "Failed to Assign",
-        description: error.message || "An error occurred",
-        variant: "destructive",
-      });
+      if (successCount > 0) {
+        const msg =
+          skipCount > 0
+            ? `Assigned ${successCount} centre(s). ${skipCount} duplicate(s) skipped.`
+            : `Assigned ${successCount} centre(s) to ${manager.full_name}`;
+        toast.success(msg);
+        await loadAssignments();
+        onSuccess?.();
+        setActiveTab("current");
+      } else if (skipCount > 0) {
+        toast.info(`All ${skipCount} selected assignment(s) already exist`);
+      }
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "Failed to create assignment");
     } finally {
       setSubmitting(false);
     }
   };
 
+  const filteredCentres = masterCentres.filter(
+    (c) =>
+      !centreSearch ||
+      c.centre_name.toLowerCase().includes(centreSearch.toLowerCase()) ||
+      c.city.toLowerCase().includes(centreSearch.toLowerCase()) ||
+      c.centre_code.toLowerCase().includes(centreSearch.toLowerCase()),
+  );
+
+  const allFilteredSelected =
+    filteredCentres.length > 0 &&
+    filteredCentres.every((c) => selectedCentres.has(c.id));
+
+  const formatTime = (t: string | null) => {
+    if (!t) return "";
+    return t.slice(0, 5); // HH:MM
+  };
+
+  const canSubmit =
+    selectedCentres.size > 0 && selectedShift && assignmentDate && !submitting;
+
   return (
     <Dialog open={open} onOpenChange={onClose}>
       <DialogContent
-        className="sm:max-w-[600px]"
+        className="sm:max-w-[680px] max-h-[90vh] overflow-hidden flex flex-col"
         onInteractOutside={(e) => e.preventDefault()}
       >
         <DialogHeader>
-          <DialogTitle>Assign Centres to Manager</DialogTitle>
+          <DialogTitle className="flex items-center gap-3">
+            <div className="flex h-10 w-10 items-center justify-center rounded-full bg-purple-100 text-purple-600 font-bold text-lg shrink-0">
+              {manager.full_name.charAt(0).toUpperCase()}
+            </div>
+            <div>
+              <p className="text-base font-semibold">{manager.full_name}</p>
+              <p className="text-xs text-gray-500 font-normal">{manager.email}</p>
+            </div>
+          </DialogTitle>
         </DialogHeader>
 
-        <div className="space-y-6">
-          {/* Manager Info */}
-          <div className="rounded-lg border bg-purple-50 p-4">
-            <div className="flex items-center gap-3">
-              <div className="flex h-12 w-12 items-center justify-center rounded-full bg-purple-600 text-white">
-                <User className="h-6 w-6" />
-              </div>
-              <div>
-                <p className="font-semibold text-gray-900">
-                  {manager.full_name}
-                </p>
-                <p className="text-sm text-gray-600">{manager.email}</p>
-              </div>
-            </div>
-          </div>
-
-          {/* Date Filter for Exams */}
-          <div className="space-y-2">
-            <label className="text-sm font-medium text-gray-900">
-              <Calendar className="inline h-4 w-4 mr-1" />
-              Filter Exams by Date (Optional)
-            </label>
-            <Input
-              type="date"
-              value={examDateFilter}
-              onChange={(e) => setExamDateFilter(e.target.value)}
-              placeholder="Filter exams by date"
-            />
-            {examDateFilter && (
-              <p className="text-xs text-gray-500">
-                Showing exams active on {format(new Date(examDateFilter), "PP")}
-              </p>
+        {/* Tab Bar */}
+        <div className="flex border-b shrink-0">
+          <button
+            onClick={() => setActiveTab("current")}
+            className={`px-4 py-2.5 text-sm font-medium transition-colors border-b-2 -mb-px flex items-center gap-2 ${
+              activeTab === "current"
+                ? "border-purple-600 text-purple-600"
+                : "border-transparent text-gray-500 hover:text-gray-700"
+            }`}
+          >
+            <Building2 className="h-4 w-4" />
+            Current Assignments
+            {assignments.length > 0 && (
+              <span className="ml-1 rounded-full bg-purple-100 px-2 py-0.5 text-xs text-purple-700">
+                {assignments.length}
+              </span>
             )}
-          </div>
+          </button>
+          <button
+            onClick={() => setActiveTab("new")}
+            className={`px-4 py-2.5 text-sm font-medium transition-colors border-b-2 -mb-px flex items-center gap-2 ${
+              activeTab === "new"
+                ? "border-purple-600 text-purple-600"
+                : "border-transparent text-gray-500 hover:text-gray-700"
+            }`}
+          >
+            <Plus className="h-4 w-4" />
+            New Assignment
+          </button>
+        </div>
 
-          {/* Exam Selection */}
-          <div className="space-y-2">
-            <label className="text-sm font-medium text-gray-900">
-              <Calendar className="inline h-4 w-4 mr-1" />
-              Select Exam *
-            </label>
-            {loading ? (
-              <div className="flex items-center justify-center p-8">
-                <Loader2 className="h-6 w-6 animate-spin text-purple-600" />
-              </div>
-            ) : exams.length === 0 ? (
-              <div className="rounded-lg border border-dashed p-8 text-center">
-                <Calendar className="mx-auto h-8 w-8 text-gray-400" />
-                <p className="mt-2 text-sm text-gray-600">
-                  {examDateFilter
-                    ? `No active exams on ${format(new Date(examDateFilter), "PP")}`
-                    : "No active exams available"}
-                </p>
-                {examDateFilter && (
-                  <Button
-                    variant="link"
-                    size="sm"
-                    className="mt-2"
-                    onClick={() => setExamDateFilter("")}
-                  >
-                    Clear date filter
-                  </Button>
-                )}
-              </div>
-            ) : (
-              <>
-                {examDateFilter && (
-                  <p className="text-xs text-gray-500 mb-2">
-                    {exams.length} exam(s) found
+        {/* Scrollable content */}
+        <div className="flex-1 overflow-y-auto">
+          {/* ── CURRENT ASSIGNMENTS TAB ── */}
+          {activeTab === "current" && (
+            <div className="py-4 space-y-3">
+              {loadingAssignments ? (
+                <div className="flex items-center justify-center py-12">
+                  <Loader2 className="h-6 w-6 animate-spin text-purple-600" />
+                  <span className="ml-2 text-sm text-gray-500">Loading assignments...</span>
+                </div>
+              ) : assignments.length === 0 ? (
+                <div className="flex flex-col items-center justify-center py-12 text-center">
+                  <MapPin className="h-10 w-10 text-gray-300 mb-3" />
+                  <p className="text-sm font-medium text-gray-600">No assignments yet</p>
+                  <p className="text-xs text-gray-400 mt-1">
+                    Use the &ldquo;New Assignment&rdquo; tab to assign centres and shifts
                   </p>
-                )}
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    className="mt-4 border-purple-300 text-purple-600 hover:bg-purple-50"
+                    onClick={() => setActiveTab("new")}
+                  >
+                    <Plus className="mr-2 h-4 w-4" />
+                    Add Assignment
+                  </Button>
+                </div>
+              ) : (
+                <>
+                  <div className="flex items-center justify-between px-1">
+                    <p className="text-xs text-gray-500">
+                      {assignments.length} assignment(s) found
+                    </p>
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      onClick={loadAssignments}
+                      className="h-7 px-2 text-xs text-gray-500"
+                    >
+                      <RefreshCw className="h-3 w-3 mr-1" />
+                      Refresh
+                    </Button>
+                  </div>
+                  <div className="space-y-2">
+                    {assignments.map((assignment) => (
+                      <div
+                        key={assignment.id}
+                        className="rounded-lg border border-gray-100 bg-gray-50 p-3 hover:border-purple-200 hover:bg-purple-50/30 transition-colors"
+                      >
+                        <div className="flex items-start justify-between gap-3">
+                          <div className="flex-1 min-w-0">
+                            {/* Exam Badge */}
+                            {assignment.exam_name ? (
+                              <Badge
+                                variant="secondary"
+                                className="mb-1.5 text-xs bg-purple-100 text-purple-700 border-0"
+                              >
+                                {assignment.exam_name}
+                              </Badge>
+                            ) : (
+                              <Badge
+                                variant="secondary"
+                                className="mb-1.5 text-xs bg-gray-100 text-gray-500 border-0"
+                              >
+                                No Exam Linked
+                              </Badge>
+                            )}
+                            {/* Centre */}
+                            <div className="flex items-center gap-1.5 text-sm font-medium text-gray-900">
+                              <MapPin className="h-3.5 w-3.5 text-purple-500 shrink-0" />
+                              <span className="truncate">{assignment.centre_name}</span>
+                              {assignment.centre_code && (
+                                <span className="text-xs text-gray-400 shrink-0">
+                                  ({assignment.centre_code})
+                                </span>
+                              )}
+                            </div>
+                            {assignment.city && (
+                              <p className="text-xs text-gray-500 ml-5">{assignment.city}</p>
+                            )}
+                            {/* Shift */}
+                            <div className="flex items-center gap-1.5 text-xs text-gray-600 mt-1">
+                              <Clock className="h-3.5 w-3.5 text-blue-400 shrink-0" />
+                              <span>{assignment.shift_name}</span>
+                              {assignment.start_time && assignment.end_time && (
+                                <span className="text-gray-400">
+                                  • {formatTime(assignment.start_time)} – {formatTime(assignment.end_time)}
+                                </span>
+                              )}
+                            </div>
+                            {/* Date */}
+                            {assignment.assigned_at && (
+                              <div className="flex items-center gap-1.5 text-xs text-gray-400 mt-0.5">
+                                <Calendar className="h-3.5 w-3.5 shrink-0" />
+                                <span>
+                                  {new Date(assignment.assigned_at).toLocaleDateString("en-IN", {
+                                    day: "numeric",
+                                    month: "short",
+                                    year: "numeric",
+                                  })}
+                                </span>
+                              </div>
+                            )}
+                          </div>
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            onClick={() => handleDelete(assignment.id)}
+                            disabled={deletingId === assignment.id}
+                            className="h-8 w-8 shrink-0 text-red-400 hover:text-red-600 hover:bg-red-50"
+                          >
+                            {deletingId === assignment.id ? (
+                              <Loader2 className="h-4 w-4 animate-spin" />
+                            ) : (
+                              <Trash2 className="h-4 w-4" />
+                            )}
+                          </Button>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </>
+              )}
+            </div>
+          )}
+
+          {/* ── NEW ASSIGNMENT TAB ── */}
+          {activeTab === "new" && (
+            <div className="py-4 space-y-5">
+              {loadingMeta && (
+                <div className="flex items-center justify-center py-4">
+                  <Loader2 className="h-5 w-5 animate-spin text-purple-600 mr-2" />
+                  <span className="text-sm text-gray-500">Loading data...</span>
+                </div>
+              )}
+
+              {/* Exam Selection (Optional) */}
+              <div className="space-y-1.5">
+                <label className="text-sm font-medium text-gray-900 flex items-center gap-1.5">
+                  <Calendar className="h-4 w-4 text-gray-400" />
+                  Link to Exam
+                  <span className="text-xs text-gray-400 font-normal">(Optional)</span>
+                </label>
                 <Select value={selectedExam} onValueChange={setSelectedExam}>
                   <SelectTrigger>
-                    <SelectValue placeholder="Choose an exam" />
+                    <SelectValue placeholder="Select an exam (optional)" />
                   </SelectTrigger>
                   <SelectContent>
+                    <SelectItem value="none">No exam link</SelectItem>
                     {exams.map((exam) => (
                       <SelectItem key={exam.id} value={exam.id}>
-                        {exam.exam_name} ({exam.exam_code}) -{" "}
-                        {format(new Date(exam.start_date), "dd MMM yyyy")} to{" "}
-                        {format(new Date(exam.end_date), "dd MMM yyyy")}
+                        {exam.exam_name}
+                        {exam.exam_code && (
+                          <span className="ml-2 text-gray-400 text-xs">({exam.exam_code})</span>
+                        )}
                       </SelectItem>
                     ))}
                   </SelectContent>
                 </Select>
-              </>
-            )}
-          </div>
-
-          {/* Centres Selection */}
-          {selectedExam && centres.length > 0 && (
-            <div className="space-y-2">
-              <div className="flex items-center justify-between">
-                <label className="text-sm font-medium text-gray-900">
-                  <MapPin className="inline h-4 w-4 mr-1" />
-                  Select Centres * ({selectedCentres.size} selected)
-                </label>
-                <Button
-                  type="button"
-                  variant="outline"
-                  size="sm"
-                  onClick={toggleAll}
-                >
-                  <CheckSquare className="h-4 w-4 mr-2" />
-                  {selectedCentres.size === centres.length
-                    ? "Deselect All"
-                    : "Select All"}
-                </Button>
               </div>
-              <div className="max-h-48 overflow-y-auto rounded-lg border p-4 space-y-2">
-                {centres.map((centre) => (
-                  <div key={centre.id} className="flex items-center space-x-2">
-                    <Checkbox
-                      id={centre.id}
-                      checked={selectedCentres.has(centre.id)}
-                      onCheckedChange={() => toggleCentre(centre.id)}
-                    />
-                    <label
-                      htmlFor={centre.id}
-                      className="flex-1 cursor-pointer text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70"
+
+              {/* Centre Multi-Select */}
+              <div className="space-y-2">
+                <div className="flex items-center justify-between">
+                  <label className="text-sm font-medium text-gray-900 flex items-center gap-1.5">
+                    <MapPin className="h-4 w-4 text-gray-400" />
+                    Select Centres *
+                    {selectedCentres.size > 0 && (
+                      <span className="ml-1 rounded-full bg-purple-100 px-2 py-0.5 text-xs text-purple-700">
+                        {selectedCentres.size} selected
+                      </span>
+                    )}
+                  </label>
+                  {filteredCentres.length > 0 && (
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="sm"
+                      onClick={toggleAllCentres}
+                      className="h-7 px-2 text-xs text-purple-600 hover:text-purple-700"
                     >
-                      {centre.centre_name} ({centre.city})
-                    </label>
-                  </div>
-                ))}
+                      <CheckSquare className="h-3 w-3 mr-1" />
+                      {allFilteredSelected ? "Deselect All" : "Select All"}
+                    </Button>
+                  )}
+                </div>
+
+                {/* Search Centres */}
+                <Input
+                  placeholder="Search by name, city, or code..."
+                  value={centreSearch}
+                  onChange={(e) => setCentreSearch(e.target.value)}
+                  className="h-8 text-sm"
+                />
+
+                {/* Centre List */}
+                <div className="max-h-44 overflow-y-auto rounded-lg border p-2 space-y-1">
+                  {masterCentres.length === 0 && !loadingMeta ? (
+                    <div className="flex items-center justify-center py-4 text-sm text-gray-400">
+                      <AlertCircle className="h-4 w-4 mr-2" />
+                      No centres available
+                    </div>
+                  ) : filteredCentres.length === 0 ? (
+                    <p className="text-xs text-gray-400 text-center py-3">
+                      No centres match your search
+                    </p>
+                  ) : (
+                    filteredCentres.map((centre) => (
+                      <div
+                        key={centre.id}
+                        onClick={() => toggleCentre(centre.id)}
+                        className={`flex items-center gap-2 rounded-md px-2 py-1.5 cursor-pointer transition-colors ${
+                          selectedCentres.has(centre.id)
+                            ? "bg-purple-50 border border-purple-200"
+                            : "hover:bg-gray-50"
+                        }`}
+                      >
+                        <Checkbox
+                          id={`centre-${centre.id}`}
+                          checked={selectedCentres.has(centre.id)}
+                          onCheckedChange={() => toggleCentre(centre.id)}
+                          onClick={(e) => e.stopPropagation()}
+                        />
+                        <div className="flex-1 min-w-0">
+                          <p className="text-sm font-medium text-gray-900 truncate">
+                            {centre.centre_name}
+                          </p>
+                          <p className="text-xs text-gray-400 truncate">
+                            {centre.city}
+                            {centre.centre_code && ` • ${centre.centre_code}`}
+                          </p>
+                        </div>
+                      </div>
+                    ))
+                  )}
+                </div>
               </div>
+
+              {/* Shift Selection */}
+              <div className="space-y-1.5">
+                <label className="text-sm font-medium text-gray-900 flex items-center gap-1.5">
+                  <Clock className="h-4 w-4 text-gray-400" />
+                  Select Shift *
+                </label>
+                <Select value={selectedShift} onValueChange={setSelectedShift}>
+                  <SelectTrigger>
+                    <SelectValue placeholder="Choose a shift" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {masterShifts.length === 0 ? (
+                      <div className="py-3 text-center text-sm text-gray-400">
+                        No shifts available
+                      </div>
+                    ) : (
+                      masterShifts.map((shift) => (
+                        <SelectItem key={shift.id} value={shift.id}>
+                          <span className="font-medium">{shift.shift_name}</span>
+                          {shift.start_time && shift.end_time && (
+                            <span className="ml-2 text-gray-400 text-xs">
+                              ({formatTime(shift.start_time)} – {formatTime(shift.end_time)})
+                            </span>
+                          )}
+                          {shift.shift_code && (
+                            <span className="ml-2 text-gray-300 text-xs">
+                              [{shift.shift_code}]
+                            </span>
+                          )}
+                        </SelectItem>
+                      ))
+                    )}
+                  </SelectContent>
+                </Select>
+              </div>
+
+              {/* Assignment Date */}
+              <div className="space-y-1.5">
+                <label className="text-sm font-medium text-gray-900 flex items-center gap-1.5">
+                  <Calendar className="h-4 w-4 text-gray-400" />
+                  Assignment Date *
+                </label>
+                <Input
+                  type="date"
+                  value={assignmentDate}
+                  onChange={(e) => setAssignmentDate(e.target.value)}
+                  className="h-10"
+                />
+              </div>
+
+              {/* Summary before submit */}
+              {selectedCentres.size > 0 && selectedShift && assignmentDate && (
+                <div className="rounded-lg border border-purple-100 bg-purple-50/50 p-3 space-y-1">
+                  <p className="text-xs font-semibold text-purple-700 uppercase tracking-wide">
+                    Assignment Summary
+                  </p>
+                  <div className="text-sm text-gray-700 space-y-0.5">
+                    <div className="flex items-center gap-1.5">
+                      <MapPin className="h-3.5 w-3.5 text-purple-400" />
+                      <span>
+                        {selectedCentres.size} centre{selectedCentres.size > 1 ? "s" : ""} selected
+                      </span>
+                    </div>
+                    <div className="flex items-center gap-1.5">
+                      <Clock className="h-3.5 w-3.5 text-blue-400" />
+                      <span>
+                        {masterShifts.find((s) => s.id === selectedShift)?.shift_name || ""}
+                      </span>
+                    </div>
+                    <div className="flex items-center gap-1.5">
+                      <Calendar className="h-3.5 w-3.5 text-green-400" />
+                      <span>
+                        {new Date(assignmentDate).toLocaleDateString("en-IN", {
+                          day: "numeric",
+                          month: "long",
+                          year: "numeric",
+                        })}
+                      </span>
+                    </div>
+                  </div>
+                </div>
+              )}
             </div>
           )}
+        </div>
 
-          {/* Shift Selection */}
-          {selectedCentres.size > 0 && shifts.length > 0 && (
-            <div className="space-y-2">
-              <label className="text-sm font-medium text-gray-900">
-                <Clock className="inline h-4 w-4 mr-1" />
-                Select Shift *
-              </label>
-              <Select value={selectedShift} onValueChange={setSelectedShift}>
-                <SelectTrigger>
-                  <SelectValue placeholder="Choose a shift" />
-                </SelectTrigger>
-                <SelectContent>
-                  {shifts.map((shift) => (
-                    <SelectItem key={shift.id} value={shift.id}>
-                      {shift.shift_name} (
-                      {format(new Date(shift.start_time), "HH:mm")} -{" "}
-                      {format(new Date(shift.end_time), "HH:mm")})
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-          )}
-
-          {/* Date Selection */}
-          {selectedShift && (
-            <div className="space-y-2">
-              <label className="text-sm font-medium text-gray-900">
-                <Calendar className="inline h-4 w-4 mr-1" />
-                Assignment Date *
-              </label>
-              <Input
-                type="date"
-                value={assignmentDate}
-                onChange={(e) => setAssignmentDate(e.target.value)}
-              />
-            </div>
-          )}
-
-          {/* Submit Buttons */}
-          <div className="flex justify-end gap-3 pt-4 border-t">
-            <Button variant="outline" onClick={onClose} disabled={submitting}>
-              Cancel
-            </Button>
+        {/* Footer */}
+        <div className="flex justify-end gap-3 pt-3 border-t shrink-0">
+          <Button variant="outline" onClick={onClose} disabled={submitting || !!deletingId}>
+            Close
+          </Button>
+          {activeTab === "new" && (
             <Button
-              onClick={onSubmit}
-              disabled={
-                submitting ||
-                !selectedExam ||
-                selectedCentres.size === 0 ||
-                !selectedShift ||
-                !assignmentDate
-              }
-              className="bg-purple-600 hover:bg-purple-700"
+              onClick={handleSubmit}
+              disabled={!canSubmit}
+              className="bg-purple-600 hover:bg-purple-700 text-white"
             >
-              {submitting && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-              Assign {selectedCentres.size > 0 && `(${selectedCentres.size})`}
+              {submitting ? (
+                <>
+                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                  Assigning...
+                </>
+              ) : (
+                <>
+                  <Plus className="mr-2 h-4 w-4" />
+                  Assign {selectedCentres.size > 0 && `(${selectedCentres.size})`}
+                </>
+              )}
             </Button>
-          </div>
+          )}
         </div>
       </DialogContent>
     </Dialog>
