@@ -551,6 +551,142 @@ export async function getMonitoringStats() {
   };
 }
 
+/**
+ * Get recent verification events for the real-time activity feed.
+ */
+export async function getRecentVerificationActivity(limit = 10) {
+  const session = await getAuthSession();
+  if (!session) return [];
+
+  const supabase = await createAdminClient();
+
+  const { data, error } = await supabase
+    .from("verifications")
+    .select(`
+      id,
+      verification_method,
+      verification_result,
+      confidence_score,
+      verification_percentage,
+      created_at,
+      verifier_id,
+      candidate_id,
+      candidate_roll_no,
+      candidate_name,
+      candidates!verifications_candidate_id_fkey(id, roll_number, full_name),
+      users!verifications_verifier_id_fkey(id, full_name)
+    `)
+    .order("created_at", { ascending: false })
+    .limit(limit);
+
+  if (error) {
+    console.error("Error fetching recent activity:", error);
+    return [];
+  }
+
+  return (data || []).map((v) => {
+    const candidate = v.candidates as any;
+    const verifier = v.users as any;
+    const rollNumber = candidate?.roll_number || v.candidate_roll_no || "Unknown";
+    const candidateName = candidate?.full_name || v.candidate_name || "";
+    const verifierName = verifier?.full_name || "Unknown Verifier";
+    const score = v.verification_percentage ?? v.confidence_score;
+
+    let type: "success" | "warning" | "error";
+    let message: string;
+    let detail: string;
+
+    if (v.verification_result === "success") {
+      type = "success";
+      message = `${v.verification_method === "face" ? "Face" : v.verification_method === "fingerprint" ? "Fingerprint" : v.verification_method === "iris" ? "Iris scan" : "Verification"} successful`;
+      detail = `${rollNumber}${candidateName ? ` - ${candidateName}` : ""} verified`;
+    } else if (v.verification_result === "retry") {
+      type = "warning";
+      message = `Low confidence score`;
+      detail = `${rollNumber} - Score: ${score !== null && score !== undefined ? `${Math.round(Number(score))}%` : "N/A"}`;
+    } else {
+      type = "error";
+      message = `${v.verification_method === "face" ? "Face mismatch" : v.verification_method === "fingerprint" ? "Fingerprint mismatch" : "Verification failed"}`;
+      detail = `${rollNumber} - Retry required`;
+    }
+
+    // Relative time
+    const diffMs = Date.now() - new Date(v.created_at).getTime();
+    const diffMins = Math.floor(diffMs / 60000);
+    const timeAgo =
+      diffMins < 1
+        ? "Just now"
+        : diffMins < 60
+          ? `${diffMins} min${diffMins > 1 ? "s" : ""} ago`
+          : `${Math.floor(diffMins / 60)} hr${Math.floor(diffMins / 60) > 1 ? "s" : ""} ago`;
+
+    return { type, message, detail, time: timeAgo, verifier: verifierName };
+  });
+}
+
+/**
+ * Get active centres with verifier assignment counts and candidate completion stats.
+ */
+export async function getActiveCentres() {
+  const session = await getAuthSession();
+  if (!session) return [];
+
+  const supabase = await createAdminClient();
+
+  // Get all active master_centres
+  const { data: centres, error: centresError } = await supabase
+    .from("master_centres")
+    .select("id, centre_name, city")
+    .eq("is_active", true)
+    .order("centre_name");
+
+  if (centresError || !centres || centres.length === 0) return [];
+
+  const centreIds = centres.map((c) => c.id);
+
+  // Count verifier assignments per centre
+  const { data: verifierAssignments } = await supabase
+    .from("verifier_assignments")
+    .select("centre_id")
+    .in("centre_id", centreIds);
+
+  // Count candidates per centre + verified count
+  const { data: candidates } = await supabase
+    .from("candidates")
+    .select("id, centre_id, verification_status")
+    .in("centre_id", centreIds);
+
+  const verifierCountMap = new Map<string, number>();
+  (verifierAssignments || []).forEach((va) => {
+    verifierCountMap.set(va.centre_id, (verifierCountMap.get(va.centre_id) || 0) + 1);
+  });
+
+  const result = centres
+    .map((centre) => {
+      const cc = (candidates || []).filter((c) => c.centre_id === centre.id);
+      const total = cc.length;
+      const verified = cc.filter((c) => c.verification_status === "verified").length;
+      const verifierCount = verifierCountMap.get(centre.id) || 0;
+      const completionPct = total > 0 ? Math.round((verified / total) * 100) : 0;
+
+      return {
+        id: centre.id,
+        centre: `${centre.centre_name}${centre.city ? ` - ${centre.city}` : ""}`,
+        verifierCount,
+        totalCandidates: total,
+        verifiedCandidates: verified,
+        completion: completionPct,
+      };
+    })
+    // Only show centres that have candidates or verifiers assigned
+    .filter((c) => c.totalCandidates > 0 || c.verifierCount > 0)
+    .slice(0, 6);
+
+  return result;
+}
+
+
+
 export async function createShift(shiftData: {
   shift_name: string;
   shift_code: string;
@@ -1560,14 +1696,47 @@ export async function createManagerAssignmentAction(
   return { success: true };
 }
 
-// ============================================================
-// MANAGER DASHBOARD ACTIONS
-// ============================================================
+/**
+ * Get all shifts assigned to this manager (for the shift filter dropdown).
+ */
+export async function getManagerAllShifts() {
+  const session = await getAuthSession();
+  if (!session || session.role !== "manager") return [];
+
+  const supabase = await createAdminClient();
+
+  const { data: assignments } = await supabase
+    .from("manager_centre_assignments")
+    .select("shift_id, master_shifts!mca_to_shifts_fk(id, shift_name, shift_code, start_time, end_time)")
+    .eq("manager_id", session.userId);
+
+  if (!assignments || assignments.length === 0) return [];
+
+  const seen = new Set<string>();
+  return assignments
+    .filter((a) => {
+      const shift = a.master_shifts as any;
+      if (!shift || seen.has(shift.id)) return false;
+      seen.add(shift.id);
+      return true;
+    })
+    .map((a) => {
+      const shift = a.master_shifts as any;
+      return {
+        shift_id: shift.id as string,
+        shift_name: shift.shift_name as string,
+        shift_code: shift.shift_code as string,
+        start_time: shift.start_time as string | null,
+        end_time: shift.end_time as string | null,
+      };
+    })
+    .sort((a, b) => (a.start_time || "").localeCompare(b.start_time || ""));
+}
 
 /**
  * Get the dashboard overview stats for the logged-in manager.
  */
-export async function getManagerDashboardStats() {
+export async function getManagerDashboardStats(shiftId?: string) {
   const session = await getAuthSession();
   if (!session || session.role !== "manager") return null;
 
@@ -1589,10 +1758,14 @@ export async function getManagerDashboardStats() {
 
   const centreIds = [...new Set(assignments.map((a) => a.centre_id))];
 
-  const [totalResult, verifiedResult] = await Promise.all([
-    supabase.from("candidates").select("id", { count: "exact", head: true }).in("centre_id", centreIds),
-    supabase.from("candidates").select("id", { count: "exact", head: true }).in("centre_id", centreIds).eq("verification_status", "verified"),
-  ]);
+  let totalQ = supabase.from("candidates").select("id", { count: "exact", head: true }).in("centre_id", centreIds);
+  let verifiedQ = supabase.from("candidates").select("id", { count: "exact", head: true }).in("centre_id", centreIds).eq("verification_status", "verified");
+  if (shiftId) {
+    totalQ = totalQ.eq("shift_id", shiftId) as typeof totalQ;
+    verifiedQ = verifiedQ.eq("shift_id", shiftId) as typeof verifiedQ;
+  }
+
+  const [totalResult, verifiedResult] = await Promise.all([totalQ, verifiedQ]);
 
   const total = totalResult.count || 0;
   const verified = verifiedResult.count || 0;
@@ -1603,30 +1776,29 @@ export async function getManagerDashboardStats() {
 /**
  * Get centres assigned to the logged-in manager with candidate counts.
  */
-export async function getManagerCentres() {
+export async function getManagerCentres(shiftId?: string) {
   const session = await getAuthSession();
   if (!session || session.role !== "manager") return [];
 
   const supabase = await createAdminClient();
 
-  const { data: assignments, error } = await supabase
+  let assignmentsQ = supabase
     .from("manager_centre_assignments")
-    .select(`
-      centre_id,
-      exam_id,
-      master_centres!mca_to_centres_fk(id, centre_name, centre_code, city, address),
-      exams!mca_to_exams_fk(id, exam_name, exam_code)
-    `)
+    .select(
+      "centre_id, exam_id, shift_id, exams!mca_to_exams_fk(id, exam_name, exam_code), master_centres!mca_to_centres_fk(id, centre_name, centre_code, city, address)"
+    )
     .eq("manager_id", session.userId);
+  if (shiftId) assignmentsQ = assignmentsQ.eq("shift_id", shiftId) as typeof assignmentsQ;
 
-  if (error || !assignments || assignments.length === 0) return [];
+  const { data: assignments } = await assignmentsQ;
+  if (!assignments || assignments.length === 0) return [];
 
   const centreMap = new Map<string, any>();
   assignments.forEach((a) => {
     if (!centreMap.has(a.centre_id)) {
       centreMap.set(a.centre_id, {
         centre_id: a.centre_id,
-        centre_name: (a.master_centres as any)?.centre_name || "Unknown",
+        centre_name: (a.master_centres as any)?.centre_name || "Unknown Centre",
         centre_code: (a.master_centres as any)?.centre_code || "",
         city: (a.master_centres as any)?.city || "",
         address: (a.master_centres as any)?.address || "",
@@ -1642,10 +1814,13 @@ export async function getManagerCentres() {
   const centres = Array.from(centreMap.values());
   const centreIds = centres.map((c) => c.centre_id);
 
-  const { data: candidates } = await supabase
+  let candidatesQ = supabase
     .from("candidates")
     .select("id, centre_id, verification_status")
     .in("centre_id", centreIds);
+  if (shiftId) candidatesQ = candidatesQ.eq("shift_id", shiftId) as typeof candidatesQ;
+
+  const { data: candidates } = await candidatesQ;
 
   return centres.map((centre) => {
     const cc = (candidates || []).filter((c) => c.centre_id === centre.centre_id);
@@ -1658,17 +1833,19 @@ export async function getManagerCentres() {
 /**
  * Get city-wise candidate stats for the logged-in manager.
  */
-export async function getManagerCityStats() {
+export async function getManagerCityStats(shiftId?: string) {
   const session = await getAuthSession();
   if (!session || session.role !== "manager") return [];
 
   const supabase = await createAdminClient();
 
-  const { data: assignments } = await supabase
+  let assignmentsQ = supabase
     .from("manager_centre_assignments")
     .select("centre_id")
     .eq("manager_id", session.userId);
+  if (shiftId) assignmentsQ = assignmentsQ.eq("shift_id", shiftId) as typeof assignmentsQ;
 
+  const { data: assignments } = await assignmentsQ;
   if (!assignments || assignments.length === 0) return [];
 
   const allowedCentreIds = [...new Set(assignments.map((a) => a.centre_id))];
@@ -1681,10 +1858,13 @@ export async function getManagerCityStats() {
   const centreToCity = new Map<string, string>();
   (centres || []).forEach((c) => centreToCity.set(c.id, c.city || "Unknown"));
 
-  const { data: candidates } = await supabase
+  let candidatesQ = supabase
     .from("candidates")
     .select("id, centre_id, verification_status")
     .in("centre_id", allowedCentreIds);
+  if (shiftId) candidatesQ = candidatesQ.eq("shift_id", shiftId) as typeof candidatesQ;
+
+  const { data: candidates } = await candidatesQ;
 
   const cityMap = new Map<string, { total: number; verified: number }>();
   (candidates || []).forEach((c) => {
@@ -1708,17 +1888,19 @@ export async function getManagerCityStats() {
 /**
  * Get candidates for the manager filtered by centreId or city.
  */
-export async function getManagerCandidates(centreId?: string, city?: string) {
+export async function getManagerCandidates(centreId?: string, city?: string, shiftId?: string) {
   const session = await getAuthSession();
   if (!session || session.role !== "manager") return [];
 
   const supabase = await createAdminClient();
 
-  const { data: assignments } = await supabase
+  let assignmentsQ = supabase
     .from("manager_centre_assignments")
     .select("centre_id")
     .eq("manager_id", session.userId);
+  if (shiftId) assignmentsQ = assignmentsQ.eq("shift_id", shiftId) as typeof assignmentsQ;
 
+  const { data: assignments } = await assignmentsQ;
   if (!assignments || assignments.length === 0) return [];
 
   let allowedCentreIds = [...new Set(assignments.map((a) => a.centre_id))];
@@ -1736,17 +1918,21 @@ export async function getManagerCandidates(centreId?: string, city?: string) {
     if (allowedCentreIds.length === 0) return [];
   }
 
-  const { data, error } = await supabase
+  let query = supabase
     .from("candidates")
     .select(`
       id, roll_number, full_name, father_name, date_of_birth, gender,
       aadhaar_number, address, email, phone, photo_url,
-      verification_status, verification_attempts, centre_id, exam_id,
+      verification_status, verification_attempts, centre_id, shift_id, exam_id,
       master_centres!candidates_centre_id_fkey(id, centre_name, city),
+      master_shifts!candidates_shift_id_fkey(id, shift_name, shift_code),
       exams!candidates_exam_id_fkey(id, exam_name, exam_code)
     `)
     .in("centre_id", allowedCentreIds)
     .order("full_name", { ascending: true });
+  if (shiftId) query = query.eq("shift_id", shiftId) as typeof query;
+
+  const { data, error } = await query;
 
   if (error) {
     console.error("Error fetching manager candidates:", error);
@@ -1757,6 +1943,8 @@ export async function getManagerCandidates(centreId?: string, city?: string) {
     ...c,
     centre_name: (c.master_centres as any)?.centre_name || "",
     city: (c.master_centres as any)?.city || "",
+    shift_name: (c.master_shifts as any)?.shift_name || "",
+    shift_code: (c.master_shifts as any)?.shift_code || "",
     exam_name: (c.exams as any)?.exam_name || "",
     exam_code: (c.exams as any)?.exam_code || "",
   }));

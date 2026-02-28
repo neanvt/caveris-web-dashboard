@@ -6,6 +6,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
+import { ShiftFilterBar } from "@/components/manager/shift-filter-bar";
 import {
   Table,
   TableBody,
@@ -335,9 +336,14 @@ export function ManagerCandidatesContent() {
   const centreId = searchParams.get("centreId") || undefined;
   const centreName = searchParams.get("centreName") || undefined;
   const city = searchParams.get("city") || undefined;
-  const shiftId = searchParams.get("shiftId") || undefined;
+  const urlShiftId = searchParams.get("shiftId") || undefined;
   const shiftName = searchParams.get("shiftName") || undefined;
   const initialStatus = searchParams.get("status") || "all";
+
+  // Shift filter: use URL param if present (came from drill-down), else use dropdown state
+  const [selectedShiftId, setSelectedShiftId] = useState<string | undefined>(undefined);
+  const effectiveShiftId = urlShiftId || selectedShiftId;
+  const shiftId = urlShiftId; // keep old var for table column hiding
 
   const [candidates, setCandidates] = useState<Candidate[]>([]);
   const [loading, setLoading] = useState(true);
@@ -350,13 +356,13 @@ export function ManagerCandidatesContent() {
   const loadCandidates = useCallback(async () => {
     setLoading(true);
     try {
-      if (centreId && shiftId) {
+      if (centreId && effectiveShiftId) {
         const { getManagerCandidatesByShift } = await import("@/app/actions/supabase-actions");
-        const data = await getManagerCandidatesByShift(centreId, shiftId);
+        const data = await getManagerCandidatesByShift(centreId, effectiveShiftId);
         setCandidates(data || []);
       } else {
         const { getManagerCandidates } = await import("@/app/actions/supabase-actions");
-        const data = await getManagerCandidates(centreId, city);
+        const data = await getManagerCandidates(centreId, city, effectiveShiftId);
         setCandidates(data || []);
       }
     } catch (err) {
@@ -364,7 +370,7 @@ export function ManagerCandidatesContent() {
     } finally {
       setLoading(false);
     }
-  }, [centreId, shiftId, city]);
+  }, [centreId, effectiveShiftId, city]);
 
   useEffect(() => {
     loadCandidates();
@@ -465,9 +471,18 @@ export function ManagerCandidatesContent() {
         ))}
       </div>
 
-      <div>
-        <h1 className="text-2xl font-bold text-gray-900">{pageTitle}</h1>
-        <p className="text-gray-600">Click column headers to sort · Click candidate to view details</p>
+      <div className="flex items-start justify-between flex-wrap gap-3">
+        <div>
+          <h1 className="text-2xl font-bold text-gray-900">{pageTitle}</h1>
+          <p className="text-gray-600 text-sm">Click column headers to sort · Click candidate to view details</p>
+        </div>
+        {/* Show shift dropdown only when not already filtered via URL (e.g. centre drill-down) */}
+        {!urlShiftId && (
+          <ShiftFilterBar
+            selectedShiftId={selectedShiftId}
+            onShiftChange={(id) => setSelectedShiftId(id)}
+          />
+        )}
       </div>
 
       {/* Status Filter Cards */}

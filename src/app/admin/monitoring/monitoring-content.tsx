@@ -1,23 +1,46 @@
 "use client";
 
-import { useEffect, useState } from "react";
-import { createClient } from "@/lib/supabase/client";
+import { useEffect, useState, useCallback } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import {
   Activity,
-  Users,
   CheckCircle,
   AlertCircle,
   Clock,
   MapPin,
   Shield,
+  RefreshCw,
+  Users,
+  BarChart3,
 } from "lucide-react";
+import {
+  getMonitoringStats,
+  getRecentVerificationActivity,
+  getActiveCentres,
+} from "@/app/actions/supabase-actions";
 
 interface Stats {
   activeVerifiers: number;
   pendingVerifications: number;
   completedToday: number;
   failedToday: number;
+}
+
+interface ActivityItem {
+  type: "success" | "warning" | "error";
+  message: string;
+  detail: string;
+  time: string;
+  verifier: string;
+}
+
+interface ActiveCentre {
+  id: string;
+  centre: string;
+  verifierCount: number;
+  totalCandidates: number;
+  verifiedCandidates: number;
+  completion: number;
 }
 
 export function MonitoringContent() {
@@ -27,74 +50,42 @@ export function MonitoringContent() {
     completedToday: 0,
     failedToday: 0,
   });
+  const [activity, setActivity] = useState<ActivityItem[]>([]);
+  const [centres, setCentres] = useState<ActiveCentre[]>([]);
   const [loading, setLoading] = useState(true);
+  const [refreshTime, setRefreshTime] = useState(new Date());
 
-  useEffect(() => {
-    loadStats();
-    // Set up auto-refresh every 30 seconds
-    const interval = setInterval(loadStats, 30000);
-    return () => clearInterval(interval);
-  }, []);
-
-  const loadStats = async () => {
+  const loadAll = useCallback(async () => {
     try {
-      const { getMonitoringStats } = await import("@/app/actions/supabase-actions");
-      const data = await getMonitoringStats();
-
-      if (data) {
-        setStats(data);
-      }
+      const [statsData, activityData, centresData] = await Promise.all([
+        getMonitoringStats(),
+        getRecentVerificationActivity(8),
+        getActiveCentres(),
+      ]);
+      if (statsData) setStats(statsData);
+      setActivity(activityData as ActivityItem[]);
+      setCentres(centresData as ActiveCentre[]);
+      setRefreshTime(new Date());
     } catch (error) {
-      console.error("Error loading monitoring stats:", error);
+      console.error("Error loading monitoring data:", error);
     } finally {
       setLoading(false);
     }
-  };
+  }, []);
 
-  const recentActivity = [
-    {
-      type: "success",
-      message: "Face verification successful",
-      detail: "ROLL000123 - Candidate verified",
-      time: "2 minutes ago",
-      verifier: "Verifier #45",
-    },
-    {
-      type: "warning",
-      message: "Low confidence score",
-      detail: "ROLL000456 - Score: 72%",
-      time: "5 minutes ago",
-      verifier: "Verifier #23",
-    },
-    {
-      type: "error",
-      message: "Fingerprint mismatch",
-      detail: "ROLL000789 - Retry required",
-      time: "8 minutes ago",
-      verifier: "Verifier #67",
-    },
-    {
-      type: "success",
-      message: "Iris scan completed",
-      detail: "ROLL000234 - Candidate verified",
-      time: "12 minutes ago",
-      verifier: "Verifier #89",
-    },
-  ];
-
-  const activeLocations = [
-    { centre: "Delhi Centre - North", active: 12, total: 15, completion: 78 },
-    { centre: "Mumbai Centre - West", active: 8, total: 10, completion: 92 },
-    { centre: "Bangalore Centre", active: 15, total: 20, completion: 65 },
-    { centre: "Chennai Centre - South", active: 6, total: 8, completion: 85 },
-  ];
+  useEffect(() => {
+    loadAll();
+    // Auto-refresh every 30 seconds
+    const interval = setInterval(loadAll, 30000);
+    return () => clearInterval(interval);
+  }, [loadAll]);
 
   if (loading) {
     return (
       <div className="flex h-full items-center justify-center p-6">
         <div className="text-center">
           <div className="h-12 w-12 animate-spin rounded-full border-4 border-green-600 border-t-transparent"></div>
-          <p className="mt-4 text-gray-600">Loading monitoring data...</p>
+          <p className="mt-4 text-gray-600">Loading live data...</p>
         </div>
       </div>
     );
@@ -102,6 +93,7 @@ export function MonitoringContent() {
 
   return (
     <div className="p-6">
+      {/* Header */}
       <div className="mb-6 flex items-center justify-between">
         <div>
           <h1 className="text-2xl font-bold text-gray-900">
@@ -116,9 +108,18 @@ export function MonitoringContent() {
           </h1>
           <p className="text-gray-600">Real-time verification tracking</p>
         </div>
-        <p className="text-sm text-gray-500">
-          Last updated: {new Date().toLocaleTimeString()}
-        </p>
+        <div className="flex items-center gap-3">
+          <p className="text-sm text-gray-500">
+            Last updated: {refreshTime.toLocaleTimeString()}
+          </p>
+          <button
+            onClick={loadAll}
+            className="flex items-center gap-1.5 rounded-md border border-gray-200 px-3 py-1.5 text-sm text-gray-600 hover:bg-gray-50 transition-colors"
+          >
+            <RefreshCw className="h-3.5 w-3.5" />
+            Refresh
+          </button>
+        </div>
       </div>
 
       {/* Stats Cards */}
@@ -133,7 +134,7 @@ export function MonitoringContent() {
                 <p className="mt-2 text-3xl font-bold text-green-600">
                   {stats.activeVerifiers}
                 </p>
-                <p className="mt-1 text-xs text-gray-500">Currently online</p>
+                <p className="mt-1 text-xs text-gray-500">Total registered</p>
               </div>
               <div className="rounded-full bg-green-100 p-3">
                 <Shield className="h-8 w-8 text-green-600" />
@@ -205,7 +206,7 @@ export function MonitoringContent() {
       </div>
 
       <div className="grid gap-6 lg:grid-cols-2">
-        {/* Recent Activity */}
+        {/* Real-time Activity Feed */}
         <Card>
           <CardHeader>
             <CardTitle className="flex items-center gap-2">
@@ -214,32 +215,40 @@ export function MonitoringContent() {
             </CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="space-y-4">
-              {recentActivity.map((activity, index) => (
-                <div
-                  key={index}
-                  className={`flex items-start gap-3 rounded-lg border-l-4 p-3 ${
-                    activity.type === "success"
-                      ? "border-l-green-500 bg-green-50"
-                      : activity.type === "warning"
-                        ? "border-l-yellow-500 bg-yellow-50"
-                        : "border-l-red-500 bg-red-50"
-                  }`}
-                >
-                  <div className="flex-1">
-                    <p className="font-medium text-gray-900">
-                      {activity.message}
-                    </p>
-                    <p className="text-sm text-gray-600">{activity.detail}</p>
-                    <div className="mt-1 flex items-center gap-3 text-xs text-gray-500">
-                      <span>{activity.time}</span>
-                      <span>•</span>
-                      <span>{activity.verifier}</span>
+            {activity.length === 0 ? (
+              <div className="flex flex-col items-center justify-center py-10 text-center">
+                <Activity className="h-10 w-10 text-gray-200 mb-3" />
+                <p className="text-sm text-gray-500 font-medium">No recent activity</p>
+                <p className="text-xs text-gray-400 mt-1">
+                  Verifications will appear here in real-time
+                </p>
+              </div>
+            ) : (
+              <div className="space-y-3">
+                {activity.map((item, index) => (
+                  <div
+                    key={index}
+                    className={`flex items-start gap-3 rounded-lg border-l-4 p-3 ${
+                      item.type === "success"
+                        ? "border-l-green-500 bg-green-50"
+                        : item.type === "warning"
+                          ? "border-l-yellow-500 bg-yellow-50"
+                          : "border-l-red-500 bg-red-50"
+                    }`}
+                  >
+                    <div className="flex-1">
+                      <p className="font-medium text-gray-900">{item.message}</p>
+                      <p className="text-sm text-gray-600">{item.detail}</p>
+                      <div className="mt-1 flex items-center gap-3 text-xs text-gray-500">
+                        <span>{item.time}</span>
+                        <span>•</span>
+                        <span>{item.verifier}</span>
+                      </div>
                     </div>
                   </div>
-                </div>
-              ))}
-            </div>
+                ))}
+              </div>
+            )}
           </CardContent>
         </Card>
 
@@ -252,31 +261,66 @@ export function MonitoringContent() {
             </CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="space-y-4">
-              {activeLocations.map((location, index) => (
-                <div key={index} className="space-y-2">
-                  <div className="flex items-center justify-between">
-                    <div>
-                      <p className="font-medium text-gray-900">
-                        {location.centre}
-                      </p>
-                      <p className="text-sm text-gray-600">
-                        {location.active} of {location.total} verifiers active
-                      </p>
+            {centres.length === 0 ? (
+              <div className="flex flex-col items-center justify-center py-10 text-center">
+                <MapPin className="h-10 w-10 text-gray-200 mb-3" />
+                <p className="text-sm text-gray-500 font-medium">No active centres</p>
+                <p className="text-xs text-gray-400 mt-1">
+                  Centres with candidates will appear here
+                </p>
+              </div>
+            ) : (
+              <div className="space-y-4">
+                {centres.map((centre) => (
+                  <div key={centre.id} className="space-y-1.5">
+                    <div className="flex items-center justify-between">
+                      <div>
+                        <p className="font-medium text-gray-900 text-sm">
+                          {centre.centre}
+                        </p>
+                        <div className="flex items-center gap-3 text-xs text-gray-500">
+                          {centre.verifierCount > 0 && (
+                            <span className="flex items-center gap-1">
+                              <Users className="h-3 w-3" />
+                              {centre.verifierCount} verifier{centre.verifierCount !== 1 ? "s" : ""}
+                            </span>
+                          )}
+                          {centre.totalCandidates > 0 && (
+                            <span className="flex items-center gap-1">
+                              <BarChart3 className="h-3 w-3" />
+                              {centre.verifiedCandidates}/{centre.totalCandidates} candidates
+                            </span>
+                          )}
+                        </div>
+                      </div>
+                      <span
+                        className={`text-lg font-bold ${
+                          centre.completion >= 75
+                            ? "text-green-600"
+                            : centre.completion >= 40
+                              ? "text-yellow-600"
+                              : "text-red-500"
+                        }`}
+                      >
+                        {centre.completion}%
+                      </span>
                     </div>
-                    <span className="text-lg font-bold text-green-600">
-                      {location.completion}%
-                    </span>
+                    <div className="h-2 w-full overflow-hidden rounded-full bg-gray-200">
+                      <div
+                        className={`h-full transition-all ${
+                          centre.completion >= 75
+                            ? "bg-green-600"
+                            : centre.completion >= 40
+                              ? "bg-yellow-500"
+                              : "bg-red-500"
+                        }`}
+                        style={{ width: `${centre.completion}%` }}
+                      ></div>
+                    </div>
                   </div>
-                  <div className="h-2 w-full overflow-hidden rounded-full bg-gray-200">
-                    <div
-                      className="h-full bg-green-600 transition-all"
-                      style={{ width: `${location.completion}%` }}
-                    ></div>
-                  </div>
-                </div>
-              ))}
-            </div>
+                ))}
+              </div>
+            )}
           </CardContent>
         </Card>
       </div>

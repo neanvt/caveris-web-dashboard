@@ -4,6 +4,7 @@ import { useEffect, useState, useCallback } from "react";
 import { useRouter } from "next/navigation";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
+import { ShiftFilterBar } from "@/components/manager/shift-filter-bar";
 import {
   ArrowLeft,
   BarChart2,
@@ -207,6 +208,7 @@ function Breadcrumb({ view, setView }: { view: ViewState; setView: (v: ViewState
 export default function ManagerAnalyticsPage() {
   const router = useRouter();
   const [view, setView] = useState<ViewState>({ kind: "overview" });
+  const [selectedShiftId, setSelectedShiftId] = useState<string | undefined>(undefined);
 
   // All top-level data
   const [centres, setCentres] = useState<StatRow[]>([]);
@@ -221,12 +223,13 @@ export default function ManagerAnalyticsPage() {
   // Load overview
   useEffect(() => {
     const load = async () => {
+      setLoadingOverview(true);
       try {
         const { getManagerCentres, getManagerCityStats, getManagerAllShiftsStats } =
           await import("@/app/actions/supabase-actions");
         const [centresData, cityData, shiftsData] = await Promise.all([
-          getManagerCentres(),
-          getManagerCityStats(),
+          getManagerCentres(selectedShiftId),
+          getManagerCityStats(selectedShiftId),
           getManagerAllShiftsStats(),
         ]);
         setCentres(
@@ -266,7 +269,7 @@ export default function ManagerAnalyticsPage() {
       }
     };
     load();
-  }, []);
+  }, [selectedShiftId]);
 
   // Load drill-down data when view changes
   const loadDrill = useCallback(async (v: ViewState) => {
@@ -372,13 +375,22 @@ export default function ManagerAnalyticsPage() {
         )}
       </div>
 
-      <div>
-        <h1 className="text-2xl font-bold text-gray-900">Verification Analytics</h1>
-        <p className="text-gray-600 text-sm">
-          {view.kind === "overview"
-            ? "Click any chart bar to drill deeper into the data"
-            : "Click the bars or breadcrumbs to navigate"}
-        </p>
+      <div className="flex items-start justify-between flex-wrap gap-3">
+        <div>
+          <h1 className="text-2xl font-bold text-gray-900">Verification Analytics</h1>
+          <p className="text-gray-600 text-sm">
+            {view.kind === "overview"
+              ? "Click any chart bar to drill deeper into the data"
+              : "Click the bars or breadcrumbs to navigate"}
+          </p>
+        </div>
+        <ShiftFilterBar
+          selectedShiftId={selectedShiftId}
+          onShiftChange={(id) => {
+            setSelectedShiftId(id);
+            setView({ kind: "overview" });
+          }}
+        />
       </div>
 
       {/* ── OVERVIEW ── */}

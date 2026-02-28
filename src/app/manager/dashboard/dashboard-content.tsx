@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { ShiftFilterBar } from "@/components/manager/shift-filter-bar";
 import {
   Building2,
   Users,
@@ -65,19 +66,21 @@ export function ManagerDashboardContent() {
   const [centres, setCentres] = useState<CentreStats[]>([]);
   const [cityStats, setCityStats] = useState<CityStats[]>([]);
   const [loading, setLoading] = useState(true);
+  const [selectedShiftId, setSelectedShiftId] = useState<string | undefined>(undefined);
 
   useEffect(() => {
-    loadAll();
-  }, []);
+    loadAll(selectedShiftId);
+  }, [selectedShiftId]);
 
-  const loadAll = async () => {
+  const loadAll = async (shiftId?: string) => {
+    setLoading(true);
     try {
       const { getManagerDashboardStats, getManagerCentres, getManagerCityStats } =
         await import("@/app/actions/supabase-actions");
       const [statsData, centresData, cityData] = await Promise.all([
-        getManagerDashboardStats(),
-        getManagerCentres(),
-        getManagerCityStats(),
+        getManagerDashboardStats(shiftId),
+        getManagerCentres(shiftId),
+        getManagerCityStats(shiftId),
       ]);
       if (statsData) setStats(statsData);
       setCentres(centresData || []);
@@ -127,9 +130,15 @@ export function ManagerDashboardContent() {
   return (
     <div className="p-6 space-y-6">
       {/* Page Header */}
-      <div>
-        <h1 className="text-2xl font-bold text-gray-900">Manager Dashboard</h1>
-        <p className="text-gray-600">Click any card to drill down into details</p>
+      <div className="flex items-start justify-between flex-wrap gap-3">
+        <div>
+          <h1 className="text-2xl font-bold text-gray-900">Manager Dashboard</h1>
+          <p className="text-gray-600 text-sm">Click any card to drill down into details</p>
+        </div>
+        <ShiftFilterBar
+          selectedShiftId={selectedShiftId}
+          onShiftChange={(id) => setSelectedShiftId(id)}
+        />
       </div>
 
       {/* Clickable Summary Stat Cards */}
