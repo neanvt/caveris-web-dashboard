@@ -140,6 +140,34 @@ function CandidateDetailModal({ candidateId, onClose }: { candidateId: string; o
     loadDetail();
   }, [candidateId]);
 
+  // Helper: format a score that is already stored as 0-100 (not 0-1)
+  const fmtScore = (val: number | null | undefined) => {
+    if (val === null || val === undefined) return "—";
+    return `${Number(val).toFixed(1)}%`;
+  };
+
+  const methodBadge = (method: string) => {
+    const map: Record<string, { label: string; color: string }> = {
+      face: { label: "Face", color: "bg-blue-100 text-blue-800" },
+      fingerprint: { label: "Fingerprint", color: "bg-purple-100 text-purple-800" },
+      iris: { label: "Iris", color: "bg-cyan-100 text-cyan-800" },
+      aadhaar: { label: "Aadhaar", color: "bg-orange-100 text-orange-800" },
+    };
+    const m = map[method] || { label: method, color: "bg-gray-100 text-gray-800" };
+    return (
+      <span className={`inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium ${m.color}`}>
+        {m.label}
+      </span>
+    );
+  };
+
+  const scoreColor = (val: number | null | undefined) => {
+    if (val === null || val === undefined) return "text-gray-700";
+    if (val >= 80) return "text-green-700 font-semibold";
+    if (val >= 60) return "text-amber-700 font-semibold";
+    return "text-red-600 font-semibold";
+  };
+
   return (
     <Dialog open onOpenChange={(open) => !open && onClose()}>
       <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
@@ -265,54 +293,182 @@ function CandidateDetailModal({ candidateId, onClose }: { candidateId: string; o
 
             {/* Verification Record */}
             {detail.latestVerification ? (
-              <div className="border rounded-lg p-4 bg-green-50 border-green-200">
-                <p className="text-sm font-semibold text-green-800 flex items-center gap-1.5 mb-3">
-                  <Fingerprint className="h-4 w-4" />
-                  Latest Verification Record
-                </p>
-                <div className="grid grid-cols-2 gap-3">
-                  <div>
-                    <p className="text-xs text-green-700">Result</p>
-                    <p className="text-sm font-medium capitalize">
-                      {detail.latestVerification.verification_result || "—"}
-                    </p>
+              <div className="border rounded-lg overflow-hidden">
+                {/* Header */}
+                <div className="bg-green-50 border-b border-green-200 px-4 py-3 flex items-center justify-between flex-wrap gap-2">
+                  <p className="text-sm font-semibold text-green-800 flex items-center gap-1.5">
+                    <Fingerprint className="h-4 w-4" />
+                    Latest Verification Record
+                  </p>
+                  <div className="flex items-center gap-2 flex-wrap">
+                    {detail.latestVerification.verification_method &&
+                      methodBadge(detail.latestVerification.verification_method)}
+                    <span className={`text-xs font-semibold px-2 py-0.5 rounded-full ${
+                      detail.latestVerification.verification_result === "success"
+                        ? "bg-green-100 text-green-800"
+                        : detail.latestVerification.verification_result === "retry"
+                          ? "bg-amber-100 text-amber-800"
+                          : "bg-red-100 text-red-800"
+                    }`}>
+                      {(detail.latestVerification.verification_result || "—").toUpperCase()}
+                    </span>
                   </div>
-                  <div>
-                    <p className="text-xs text-green-700">Date & Time</p>
-                    <p className="text-sm font-medium">
-                      {detail.latestVerification.created_at
-                        ? new Date(detail.latestVerification.created_at).toLocaleString("en-IN")
-                        : "—"}
-                    </p>
+                </div>
+
+                <div className="p-4 space-y-4">
+                  {/* Basic info row */}
+                  <div className="grid grid-cols-2 gap-3">
+                    <div>
+                      <p className="text-xs text-gray-500">Date &amp; Time</p>
+                      <p className="text-sm font-medium">
+                        {detail.latestVerification.created_at
+                          ? new Date(detail.latestVerification.created_at).toLocaleString("en-IN")
+                          : "—"}
+                      </p>
+                    </div>
+                    {detail.latestVerification.device_id && (
+                      <div>
+                        <p className="text-xs text-gray-500">Device</p>
+                        <p className="text-sm font-medium">{detail.latestVerification.device_id}</p>
+                      </div>
+                    )}
+                    {detail.latestVerification.verifier_id && (
+                      <div className="col-span-2">
+                        <p className="text-xs text-gray-500">Verified By (ID)</p>
+                        <p className="text-sm font-mono text-gray-600 break-all">
+                          {detail.latestVerification.verifier_name ||
+                            detail.latestVerification.verifier_id}
+                        </p>
+                      </div>
+                    )}
                   </div>
-                  {detail.latestVerification.face_match_score != null && (
-                    <div>
-                      <p className="text-xs text-green-700">Face Match Score</p>
-                      <p className="text-sm font-medium">
-                        {(detail.latestVerification.face_match_score * 100).toFixed(1)}%
+
+                  {/* ── FACE ── */}
+                  {(detail.latestVerification.verification_method === "face" ||
+                    detail.latestVerification.verification_percentage != null ||
+                    detail.latestVerification.confidence_score != null) && (
+                    <div className="rounded-lg bg-blue-50 border border-blue-100 p-3 space-y-2">
+                      <p className="text-xs font-semibold text-blue-700 uppercase tracking-wide">
+                        Face Verification
                       </p>
+                      <div className="grid grid-cols-2 gap-3">
+                        {detail.latestVerification.verification_percentage != null && (
+                          <div>
+                            <p className="text-xs text-blue-600">Match Score</p>
+                            <p className={`text-base ${scoreColor(detail.latestVerification.verification_percentage)}`}>
+                              {fmtScore(detail.latestVerification.verification_percentage)}
+                            </p>
+                          </div>
+                        )}
+                        {detail.latestVerification.confidence_score != null && (
+                          <div>
+                            <p className="text-xs text-blue-600">Confidence Score</p>
+                            <p className={`text-base ${scoreColor(detail.latestVerification.confidence_score)}`}>
+                              {fmtScore(detail.latestVerification.confidence_score)}
+                            </p>
+                          </div>
+                        )}
+                      </div>
                     </div>
                   )}
-                  {detail.latestVerification.fingerprint_match_score != null && (
-                    <div>
-                      <p className="text-xs text-green-700">Fingerprint Score</p>
-                      <p className="text-sm font-medium">
-                        {(detail.latestVerification.fingerprint_match_score * 100).toFixed(1)}%
+
+                  {/* ── FINGERPRINT ── */}
+                  {(detail.latestVerification.verification_method === "fingerprint" ||
+                    detail.latestVerification.fingerprint_match_score != null) && (
+                    <div className="rounded-lg bg-purple-50 border border-purple-100 p-3 space-y-2">
+                      <p className="text-xs font-semibold text-purple-700 uppercase tracking-wide">
+                        Fingerprint Verification
                       </p>
+                      <div className="grid grid-cols-2 gap-3">
+                        {detail.latestVerification.fingerprint_match_score != null && (
+                          <div>
+                            <p className="text-xs text-purple-600">Match Score</p>
+                            <p className={`text-base ${scoreColor(detail.latestVerification.fingerprint_match_score)}`}>
+                              {/* fingerprint_match_score is INTEGER 0-100, no * 100 needed */}
+                              {fmtScore(detail.latestVerification.fingerprint_match_score)}
+                            </p>
+                          </div>
+                        )}
+                        {detail.latestVerification.fingerprint_quality != null && (
+                          <div>
+                            <p className="text-xs text-purple-600">Quality</p>
+                            <p className={`text-base ${scoreColor(detail.latestVerification.fingerprint_quality)}`}>
+                              {fmtScore(detail.latestVerification.fingerprint_quality)}
+                            </p>
+                          </div>
+                        )}
+                        {detail.latestVerification.finger_name && (
+                          <div className="col-span-2">
+                            <p className="text-xs text-purple-600">Finger Used</p>
+                            <p className="text-sm font-medium capitalize">
+                              {detail.latestVerification.finger_name.replace(/_/g, " ")}
+                            </p>
+                          </div>
+                        )}
+                      </div>
                     </div>
                   )}
-                  {detail.latestVerification.verifier_id && (
-                    <div>
-                      <p className="text-xs text-green-700">Verified By</p>
-                      <p className="text-sm font-medium font-mono">
-                        {detail.latestVerification.verifier_id}
+
+                  {/* ── IRIS ── */}
+                  {(detail.latestVerification.verification_method === "iris" ||
+                    detail.latestVerification.eye_name) && (
+                    <div className="rounded-lg bg-cyan-50 border border-cyan-100 p-3 space-y-2">
+                      <p className="text-xs font-semibold text-cyan-700 uppercase tracking-wide">
+                        Iris Verification
                       </p>
+                      <div className="grid grid-cols-2 gap-3">
+                        {detail.latestVerification.eye_name && (
+                          <div>
+                            <p className="text-xs text-cyan-600">Eye Used</p>
+                            <p className="text-sm font-medium capitalize">
+                              {detail.latestVerification.eye_name.replace(/_/g, " ")}
+                            </p>
+                          </div>
+                        )}
+                        <div>
+                          <p className="text-xs text-cyan-600">Iris Data</p>
+                          <p className="text-sm font-medium">
+                            {detail.latestVerification.iris_vector ? "Captured ✓" : "—"}
+                          </p>
+                        </div>
+                      </div>
                     </div>
                   )}
-                  {detail.latestVerification.device_id && (
-                    <div>
-                      <p className="text-xs text-green-700">Device</p>
-                      <p className="text-sm font-medium">{detail.latestVerification.device_id}</p>
+
+                  {/* ── AADHAAR ── */}
+                  {(detail.latestVerification.verification_method === "aadhaar" ||
+                    detail.latestVerification.aadhaar_verified != null ||
+                    detail.latestVerification.aadhaar_verification_status) && (
+                    <div className="rounded-lg bg-orange-50 border border-orange-100 p-3 space-y-2">
+                      <p className="text-xs font-semibold text-orange-700 uppercase tracking-wide">
+                        Aadhaar Verification
+                      </p>
+                      <div className="grid grid-cols-2 gap-3">
+                        {detail.latestVerification.aadhaar_verification_status && (
+                          <div>
+                            <p className="text-xs text-orange-600">Status</p>
+                            <p className="text-sm font-medium capitalize">
+                              {detail.latestVerification.aadhaar_verification_status}
+                            </p>
+                          </div>
+                        )}
+                        {detail.latestVerification.aadhaar_verified != null && (
+                          <div>
+                            <p className="text-xs text-orange-600">Verified</p>
+                            <p className="text-sm font-medium">
+                              {detail.latestVerification.aadhaar_verified ? "Yes ✓" : "No"}
+                            </p>
+                          </div>
+                        )}
+                        {detail.latestVerification.aadhaar_number_masked && (
+                          <div className="col-span-2">
+                            <p className="text-xs text-orange-600">Aadhaar (Masked)</p>
+                            <p className="text-sm font-mono">
+                              {detail.latestVerification.aadhaar_number_masked}
+                            </p>
+                          </div>
+                        )}
+                      </div>
                     </div>
                   )}
                 </div>
@@ -328,6 +484,9 @@ function CandidateDetailModal({ candidateId, onClose }: { candidateId: string; o
     </Dialog>
   );
 }
+
+
+
 
 export function ManagerCandidatesContent() {
   const searchParams = useSearchParams();
