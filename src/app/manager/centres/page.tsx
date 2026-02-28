@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -9,13 +9,15 @@ import {
   Building2,
   MapPin,
   Eye,
-  Users,
-  CheckCircle,
   Clock,
 } from "lucide-react";
 
 export default function ManagerCentresPage() {
   const router = useRouter();
+  const searchParams = useSearchParams();
+  // Carry forward shift filter from dashboard drilldown
+  const shiftId = searchParams.get("shiftId") || undefined;
+
   const [centres, setCentres] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
 
@@ -23,7 +25,7 @@ export default function ManagerCentresPage() {
     const load = async () => {
       try {
         const { getManagerCentres } = await import("@/app/actions/supabase-actions");
-        const data = await getManagerCentres();
+        const data = await getManagerCentres(shiftId);
         setCentres(data || []);
       } catch (err) {
         console.error(err);
@@ -32,7 +34,16 @@ export default function ManagerCentresPage() {
       }
     };
     load();
-  }, []);
+  }, [shiftId]);
+
+  // Build navigation URL carrying the shiftId forward
+  const buildUrl = (base: string, extraParams?: Record<string, string>) => {
+    const params = new URLSearchParams();
+    if (shiftId) params.set("shiftId", shiftId);
+    if (extraParams) Object.entries(extraParams).forEach(([k, v]) => params.set(k, v));
+    const qs = params.toString();
+    return qs ? `${base}?${qs}` : base;
+  };
 
   if (loading) {
     return (
@@ -44,16 +55,27 @@ export default function ManagerCentresPage() {
 
   return (
     <div className="p-6 space-y-5">
-      <div>
-        <h1 className="text-2xl font-bold text-gray-900">My Centres</h1>
-        <p className="text-gray-600">All exam centres assigned to you</p>
+      <div className="flex items-start justify-between flex-wrap gap-3">
+        <div>
+          <h1 className="text-2xl font-bold text-gray-900">My Centres</h1>
+          <p className="text-gray-600">All exam centres assigned to you</p>
+        </div>
+        {/* Show active shift filter badge if inherited from dashboard */}
+        {shiftId && (
+          <div className="flex items-center gap-2 rounded-full bg-indigo-100 px-4 py-1.5 text-sm text-indigo-700 font-medium">
+            <Clock className="h-3.5 w-3.5" />
+            Shift filter active — showing filtered data
+          </div>
+        )}
       </div>
 
       {centres.length === 0 ? (
         <Card>
           <CardContent className="py-16 text-center">
             <Building2 className="mx-auto h-12 w-12 text-gray-400" />
-            <p className="mt-4 text-gray-600">No centres assigned yet</p>
+            <p className="mt-4 text-gray-600">
+              {shiftId ? "No centres assigned for this shift" : "No centres assigned yet"}
+            </p>
           </CardContent>
         </Card>
       ) : (
@@ -128,11 +150,11 @@ export default function ManagerCentresPage() {
                     size="sm"
                     className="w-full bg-indigo-600 hover:bg-indigo-700"
                     onClick={() =>
-                      router.push(`/manager/centres/${centre.centre_id}` as any)
+                      router.push(buildUrl(`/manager/centres/${centre.centre_id}`) as any)
                     }
                   >
                     <Eye className="mr-2 h-4 w-4" />
-                    Select Shift & View Candidates
+                    Select Shift &amp; View Candidates
                   </Button>
                 </CardContent>
               </Card>

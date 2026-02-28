@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { ShiftFilterBar } from "@/components/manager/shift-filter-bar";
 import {
@@ -62,11 +62,22 @@ const PIE_COLORS = ["#22c55e", "#f59e0b", "#ef4444"];
 
 export function ManagerDashboardContent() {
   const router = useRouter();
+  const searchParams = useSearchParams();
+  const urlShiftId = searchParams.get("shiftId") || undefined;
   const [stats, setStats] = useState<DashboardStats | null>(null);
   const [centres, setCentres] = useState<CentreStats[]>([]);
   const [cityStats, setCityStats] = useState<CityStats[]>([]);
   const [loading, setLoading] = useState(true);
-  const [selectedShiftId, setSelectedShiftId] = useState<string | undefined>(undefined);
+  const [selectedShiftId, setSelectedShiftId] = useState<string | undefined>(urlShiftId);
+
+  // Utility: build a URL with current shiftId appended if set
+  const buildUrl = (base: string, extraParams?: Record<string, string>) => {
+    const params = new URLSearchParams();
+    if (selectedShiftId) params.set("shiftId", selectedShiftId);
+    if (extraParams) Object.entries(extraParams).forEach(([k, v]) => params.set(k, v));
+    const qs = params.toString();
+    return qs ? `${base}?${qs}` : base;
+  };
 
   useEffect(() => {
     loadAll(selectedShiftId);
@@ -145,7 +156,7 @@ export function ManagerDashboardContent() {
       <div className="grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-4">
         {/* Assigned Centres */}
         <button
-          onClick={() => router.push("/manager/centres" as any)}
+          onClick={() => router.push(buildUrl("/manager/centres"))}
           className="group text-left"
         >
           <Card className="border-l-4 border-l-indigo-500 cursor-pointer hover:shadow-lg transition-all hover:-translate-y-0.5">
@@ -168,7 +179,7 @@ export function ManagerDashboardContent() {
 
         {/* Total Candidates */}
         <button
-          onClick={() => router.push("/manager/candidates" as any)}
+          onClick={() => router.push(buildUrl("/manager/candidates"))}
           className="group text-left"
         >
           <Card className="border-l-4 border-l-blue-500 cursor-pointer hover:shadow-lg transition-all hover:-translate-y-0.5">
@@ -193,7 +204,7 @@ export function ManagerDashboardContent() {
 
         {/* Verified */}
         <button
-          onClick={() => router.push("/manager/candidates?status=verified" as any)}
+          onClick={() => router.push(buildUrl("/manager/candidates", { status: "verified" }))}  
           className="group text-left"
         >
           <Card className="border-l-4 border-l-green-500 cursor-pointer hover:shadow-lg transition-all hover:-translate-y-0.5">
@@ -218,7 +229,7 @@ export function ManagerDashboardContent() {
 
         {/* Pending */}
         <button
-          onClick={() => router.push("/manager/candidates?status=pending" as any)}
+          onClick={() => router.push(buildUrl("/manager/candidates", { status: "pending" }))}  
           className="group text-left"
         >
           <Card className="border-l-4 border-l-amber-500 cursor-pointer hover:shadow-lg transition-all hover:-translate-y-0.5">
@@ -246,7 +257,7 @@ export function ManagerDashboardContent() {
       <div className="grid grid-cols-1 gap-6 lg:grid-cols-3">
         {/* Donut — Verified vs Pending — CLICKABLE → Analytics */}
         <button
-          onClick={() => router.push("/manager/analytics" as any)}
+          onClick={() => router.push(buildUrl("/manager/analytics"))}  
           className="group text-left"
         >
           <Card className="cursor-pointer hover:shadow-lg transition-all hover:-translate-y-0.5 h-full">
@@ -378,7 +389,7 @@ export function ManagerDashboardContent() {
                 return (
                   <button
                     key={centre.centre_id}
-                    onClick={() => router.push(`/manager/centres/${centre.centre_id}` as any)}
+                    onClick={() => router.push(buildUrl(`/manager/centres/${centre.centre_id}`))}
                     className="w-full flex items-center gap-4 px-6 py-4 hover:bg-indigo-50 transition-colors text-left"
                   >
                     <div className="flex h-10 w-10 items-center justify-center rounded-full bg-indigo-100 flex-shrink-0">
@@ -441,7 +452,7 @@ export function ManagerDashboardContent() {
                   <button
                     key={city.city}
                     onClick={() =>
-                      router.push(`/manager/candidates?city=${encodeURIComponent(city.city)}` as any)
+                      router.push(buildUrl("/manager/candidates", { city: city.city }))
                     }
                     className="w-full flex items-center gap-4 px-6 py-4 hover:bg-indigo-50 transition-colors text-left"
                   >

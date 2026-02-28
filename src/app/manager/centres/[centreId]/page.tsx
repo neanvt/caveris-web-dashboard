@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { useRouter, useParams } from "next/navigation";
+import { useRouter, useParams, useSearchParams } from "next/navigation";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import {
   ArrowLeft,
@@ -51,7 +51,15 @@ interface CentreInfo {
 export default function CentreDetailPage() {
   const router = useRouter();
   const params = useParams();
+  const searchParams = useSearchParams();
   const centreId = params.centreId as string;
+  // Inherit shift filter from parent navigation (e.g. came from dashboard with a shift pre-selected)
+  const inheritedShiftId = searchParams.get("shiftId") || undefined;
+
+  const buildBackUrl = (base: string) => {
+    if (!inheritedShiftId) return base;
+    return `${base}?shiftId=${inheritedShiftId}`;
+  };
 
   const [shifts, setShifts] = useState<ShiftStats[]>([]);
   const [centreInfo, setCentreInfo] = useState<CentreInfo | null>(null);
@@ -123,14 +131,14 @@ export default function CentreDetailPage() {
       {/* Breadcrumb */}
       <div className="flex items-center gap-2 text-sm flex-wrap">
         <button
-          onClick={() => router.push("/manager/dashboard" as any)}
+          onClick={() => router.push(buildBackUrl("/manager/dashboard") as any)}
           className="text-indigo-600 hover:underline flex items-center gap-1"
         >
           <ArrowLeft className="h-4 w-4" /> Dashboard
         </button>
         <ChevronRight className="h-4 w-4 text-gray-400" />
         <button
-          onClick={() => router.push("/manager/centres" as any)}
+          onClick={() => router.push(buildBackUrl("/manager/centres") as any)}
           className="text-indigo-600 hover:underline"
         >
           Centres
@@ -210,9 +218,9 @@ export default function CentreDetailPage() {
                 className="text-indigo-600 underline"
                 onClick={() =>
                   router.push(
-                    `/manager/candidates?centreId=${centreId}&centreName=${encodeURIComponent(
+                    (`/manager/candidates?centreId=${centreId}&centreName=${encodeURIComponent(
                       centreInfo?.centre_name || ""
-                    )}` as any
+                    )}` + (inheritedShiftId ? `&shiftId=${inheritedShiftId}` : "")) as any
                   )
                 }
               >
