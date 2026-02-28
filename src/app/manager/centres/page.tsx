@@ -128,13 +128,11 @@ export default function ManagerCentresPage() {
                     size="sm"
                     className="w-full bg-indigo-600 hover:bg-indigo-700"
                     onClick={() =>
-                      router.push(
-                        `/manager/candidates?centreId=${centre.centre_id}&centreName=${encodeURIComponent(centre.centre_name)}` as any
-                      )
+                      router.push(`/manager/centres/${centre.centre_id}` as any)
                     }
                   >
                     <Eye className="mr-2 h-4 w-4" />
-                    View Candidates
+                    Select Shift & View Candidates
                   </Button>
                 </CardContent>
               </Card>
