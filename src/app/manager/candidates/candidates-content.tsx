@@ -399,7 +399,7 @@ function CandidateDetailModal({ candidateId, onClose }: { candidateId: string; o
                             <p className="text-xs text-blue-600 mb-1.5 font-medium">Captured at Verification</p>
                             {(() => {
                               const capturedUrl = detail.latestVerification.photo_captured_url;
-                              const capturedBase64 = detail.latestVerification.captured_photo;
+                              const capturedBase64 = detail.latestVerification.captured_photo; console.log("capturedBase64 length:", capturedBase64 ? capturedBase64.length : 0);
                               // Use URL if available, otherwise build data URL from base64
                               const src = capturedUrl
                                 ? capturedUrl
