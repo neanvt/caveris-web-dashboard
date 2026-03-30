@@ -60,6 +60,11 @@ interface Candidate {
   centre_id?: string;
   shift_id?: string;
   created_at: string;
+  // Biometric enrollment fields (may be null if not yet captured)
+  fingerprint_template?: string | null;
+  fingerprint_image_url?: string | null;
+  iris_image_url?: string | null;
+  iris_vector?: string | null;
 }
 
 interface Exam {
@@ -1483,6 +1488,61 @@ export function CandidatesContent() {
                       (s) => s.id === (selectedCandidate as any).shift_id,
                     )?.shift_name || "Unknown Shift"}
                   </p>
+                </div>
+              </div>
+
+              {/* Biometric Enrollment Section */}
+              <div className="mt-4 rounded-lg border border-gray-200 bg-gray-50 p-4">
+                <h4 className="mb-3 text-sm font-semibold text-gray-700 flex items-center gap-2">
+                  <span>🧬</span> Biometric Enrollment
+                </h4>
+                <div className="grid grid-cols-2 gap-4">
+                  {/* Fingerprint */}
+                  <div className="rounded-md border bg-white p-3">
+                    <p className="text-xs font-medium text-gray-500 mb-2">Fingerprint</p>
+                    {(selectedCandidate as any).fingerprint_image_url ? (
+                      <img
+                        src={(selectedCandidate as any).fingerprint_image_url}
+                        alt="Fingerprint"
+                        className="h-24 w-full object-cover rounded mb-1"
+                      />
+                    ) : (
+                      <div className="h-24 w-full flex flex-col items-center justify-center rounded bg-gray-100 text-gray-400 gap-1">
+                        <span className="text-2xl">👆</span>
+                        <span className="text-xs">Not enrolled</span>
+                      </div>
+                    )}
+                    <div className={`mt-1 text-xs px-2 py-0.5 rounded-full text-center font-medium ${
+                      (selectedCandidate as any).fingerprint_template
+                        ? 'bg-green-100 text-green-700'
+                        : 'bg-gray-100 text-gray-500'
+                    }`}>
+                      {(selectedCandidate as any).fingerprint_template ? '✓ Template captured' : 'No template'}
+                    </div>
+                  </div>
+                  {/* Iris */}
+                  <div className="rounded-md border bg-white p-3">
+                    <p className="text-xs font-medium text-gray-500 mb-2">Iris</p>
+                    {(selectedCandidate as any).iris_image_url ? (
+                      <img
+                        src={(selectedCandidate as any).iris_image_url}
+                        alt="Iris"
+                        className="h-24 w-full object-cover rounded mb-1"
+                      />
+                    ) : (
+                      <div className="h-24 w-full flex flex-col items-center justify-center rounded bg-gray-100 text-gray-400 gap-1">
+                        <span className="text-2xl">👁️</span>
+                        <span className="text-xs">Not enrolled</span>
+                      </div>
+                    )}
+                    <div className={`mt-1 text-xs px-2 py-0.5 rounded-full text-center font-medium ${
+                      (selectedCandidate as any).iris_vector
+                        ? 'bg-blue-100 text-blue-700'
+                        : 'bg-gray-100 text-gray-500'
+                    }`}>
+                      {(selectedCandidate as any).iris_vector ? '✓ Vector captured' : 'No vector'}
+                    </div>
+                  </div>
                 </div>
               </div>
 

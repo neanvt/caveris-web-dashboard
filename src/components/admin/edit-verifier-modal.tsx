@@ -31,7 +31,8 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { useToast } from "@/hooks/use-toast";
-import { Loader2 } from "lucide-react";
+import { Loader2, KeyRound } from "lucide-react";
+import { hashPassword, generateDefaultPassword } from "@/lib/password-utils";
 
 const editVerifierSchema = z.object({
   full_name: z.string().min(3, "Name must be at least 3 characters"),
@@ -76,6 +77,7 @@ export function EditVerifierModal({
 }: EditVerifierModalProps) {
   const { toast } = useToast();
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [isResettingPassword, setIsResettingPassword] = useState(false);
 
   const form = useForm<EditVerifierFormValues>({
     resolver: zodResolver(editVerifierSchema),
@@ -143,6 +145,51 @@ export function EditVerifierModal({
       });
     } finally {
       setIsSubmitting(false);
+    }
+  };
+
+  const handleResetPassword = async () => {
+    if (!verifier) return;
+
+    const confirmed = window.confirm(
+      `Reset password for ${verifier.full_name}?\n\nThis will set their password to the default (last 4 digits of phone + "Caveris") and prompt them to change it on next login.`
+    );
+    if (!confirmed) return;
+
+    setIsResettingPassword(true);
+
+    try {
+      const supabase = createClient();
+
+      // Generate default password from current phone
+      const currentPhone = form.getValues("phone") || verifier.phone;
+      const defaultPassword = generateDefaultPassword(currentPhone);
+      const { hash, salt } = await hashPassword(defaultPassword);
+
+      const { error } = await supabase
+        .from("users")
+        .update({
+          password_hash: hash,
+          password_salt: salt,
+          force_password_change: true,
+        })
+        .eq("id", verifier.id);
+
+      if (error) throw error;
+
+      toast({
+        title: "Password Reset Successfully",
+        description: `${verifier.full_name}'s password has been reset to the default. They will be prompted to change it on next login.`,
+      });
+    } catch (error: any) {
+      console.error("Error resetting password:", error);
+      toast({
+        title: "Failed to Reset Password",
+        description: error.message || "An unexpected error occurred",
+        variant: "destructive",
+      });
+    } finally {
+      setIsResettingPassword(false);
     }
   };
 
@@ -296,29 +343,45 @@ export function EditVerifierModal({
             />
 
             {/* Submit Buttons */}
-            <div className="flex gap-3 justify-end pt-4">
+            <div className="flex items-center justify-between pt-4">
               <Button
                 type="button"
                 variant="outline"
-                onClick={onClose}
-                disabled={isSubmitting}
+                onClick={handleResetPassword}
+                disabled={isSubmitting || isResettingPassword}
+                className="border-orange-500 text-orange-600 hover:bg-orange-50"
               >
-                Cancel
-              </Button>
-              <Button
-                type="submit"
-                disabled={isSubmitting}
-                className="bg-green-600 hover:bg-green-700"
-              >
-                {isSubmitting ? (
-                  <>
-                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                    Updating...
-                  </>
+                {isResettingPassword ? (
+                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
                 ) : (
-                  "Update Verifier"
+                  <KeyRound className="mr-2 h-4 w-4" />
                 )}
+                Reset Password
               </Button>
+              <div className="flex gap-3">
+                <Button
+                  type="button"
+                  variant="outline"
+                  onClick={onClose}
+                  disabled={isSubmitting || isResettingPassword}
+                >
+                  Cancel
+                </Button>
+                <Button
+                  type="submit"
+                  disabled={isSubmitting || isResettingPassword}
+                  className="bg-green-600 hover:bg-green-700"
+                >
+                  {isSubmitting ? (
+                    <>
+                      <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                      Updating...
+                    </>
+                  ) : (
+                    "Update Verifier"
+                  )}
+                </Button>
+              </div>
             </div>
           </form>
         </Form>
