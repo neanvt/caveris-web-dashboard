@@ -63,7 +63,9 @@ interface Candidate {
   // Biometric enrollment fields (may be null if not yet captured)
   fingerprint_template?: string | null;
   fingerprint_image_url?: string | null;
+  fingerprint_image_base64?: string | null;
   iris_image_url?: string | null;
+  iris_image_base64?: string | null;
   iris_vector?: string | null;
 }
 
@@ -1500,9 +1502,9 @@ export function CandidatesContent() {
                   {/* Fingerprint */}
                   <div className="rounded-md border bg-white p-3">
                     <p className="text-xs font-medium text-gray-500 mb-2">Fingerprint</p>
-                    {(selectedCandidate as any).fingerprint_image_url ? (
+                    {selectedCandidate.fingerprint_image_url || selectedCandidate.fingerprint_image_base64 ? (
                       <img
-                        src={(selectedCandidate as any).fingerprint_image_url}
+                        src={selectedCandidate.fingerprint_image_url ?? `data:image/jpeg;base64,${selectedCandidate.fingerprint_image_base64}`}
                         alt="Fingerprint"
                         className="h-24 w-full object-cover rounded mb-1"
                       />
@@ -1512,20 +1514,29 @@ export function CandidatesContent() {
                         <span className="text-xs">Not enrolled</span>
                       </div>
                     )}
-                    <div className={`mt-1 text-xs px-2 py-0.5 rounded-full text-center font-medium ${
-                      (selectedCandidate as any).fingerprint_template
-                        ? 'bg-green-100 text-green-700'
-                        : 'bg-gray-100 text-gray-500'
-                    }`}>
-                      {(selectedCandidate as any).fingerprint_template ? '✓ Template captured' : 'No template'}
+                    <div className="mt-1 flex flex-col gap-0.5">
+                      <div className={`text-xs px-2 py-0.5 rounded-full text-center font-medium ${
+                        selectedCandidate.fingerprint_template
+                          ? 'bg-green-100 text-green-700'
+                          : 'bg-gray-100 text-gray-500'
+                      }`}>
+                        {selectedCandidate.fingerprint_template ? '✓ Template saved' : 'No template'}
+                      </div>
+                      <div className={`text-xs px-2 py-0.5 rounded-full text-center font-medium ${
+                        selectedCandidate.fingerprint_image_base64
+                          ? 'bg-emerald-100 text-emerald-700'
+                          : 'bg-gray-100 text-gray-400'
+                      }`}>
+                        {selectedCandidate.fingerprint_image_base64 ? '✓ Image (base64) saved' : 'No base64 image'}
+                      </div>
                     </div>
                   </div>
                   {/* Iris */}
                   <div className="rounded-md border bg-white p-3">
                     <p className="text-xs font-medium text-gray-500 mb-2">Iris</p>
-                    {(selectedCandidate as any).iris_image_url ? (
+                    {selectedCandidate.iris_image_url || selectedCandidate.iris_image_base64 ? (
                       <img
-                        src={(selectedCandidate as any).iris_image_url}
+                        src={selectedCandidate.iris_image_url ?? `data:image/jpeg;base64,${selectedCandidate.iris_image_base64}`}
                         alt="Iris"
                         className="h-24 w-full object-cover rounded mb-1"
                       />
@@ -1535,16 +1546,26 @@ export function CandidatesContent() {
                         <span className="text-xs">Not enrolled</span>
                       </div>
                     )}
-                    <div className={`mt-1 text-xs px-2 py-0.5 rounded-full text-center font-medium ${
-                      (selectedCandidate as any).iris_vector
-                        ? 'bg-blue-100 text-blue-700'
-                        : 'bg-gray-100 text-gray-500'
-                    }`}>
-                      {(selectedCandidate as any).iris_vector ? '✓ Vector captured' : 'No vector'}
+                    <div className="mt-1 flex flex-col gap-0.5">
+                      <div className={`text-xs px-2 py-0.5 rounded-full text-center font-medium ${
+                        selectedCandidate.iris_vector
+                          ? 'bg-blue-100 text-blue-700'
+                          : 'bg-gray-100 text-gray-500'
+                      }`}>
+                        {selectedCandidate.iris_vector ? '✓ Vector saved' : 'No vector'}
+                      </div>
+                      <div className={`text-xs px-2 py-0.5 rounded-full text-center font-medium ${
+                        selectedCandidate.iris_image_base64
+                          ? 'bg-sky-100 text-sky-700'
+                          : 'bg-gray-100 text-gray-400'
+                      }`}>
+                        {selectedCandidate.iris_image_base64 ? '✓ Image (base64) saved' : 'No base64 image'}
+                      </div>
                     </div>
                   </div>
                 </div>
               </div>
+
 
               <div className="flex justify-end pt-4">
                 <Button onClick={() => setShowDetailsModal(false)}>

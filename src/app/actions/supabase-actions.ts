@@ -118,7 +118,7 @@ async function fetchTestingExamPayload(supabase: any, exam: any) {
       id, roll_number, full_name, father_name,
       verification_status, verification_attempts,
       centre_id, shift_id, created_at,
-      photo_url, fingerprint_image_url, iris_image_url,
+      photo_url, fingerprint_image_url, fingerprint_image_base64, iris_image_url, iris_image_base64,
       fingerprint_template, iris_vector
     `)
     .eq("exam_id", exam.id)
@@ -838,6 +838,8 @@ export async function importCandidateRow(rowData: {
   email?: string;
   phone?: string;
   photo_url?: string;
+  fingerprint_image_url?: string;
+  iris_image_url?: string;
   exam_date: string;
   exam_name: string;
   exam_start_date: string;
@@ -957,6 +959,8 @@ export async function importCandidateRow(rowData: {
       email: rowData.email || null,
       phone: rowData.phone || null,
       photo_url: rowData.photo_url || null,
+      fingerprint_image_url: rowData.fingerprint_image_url || null,
+      iris_image_url: rowData.iris_image_url || null,
       exam_id: exam.id,
       centre_id: centre.id,
       shift_id: shift.id,
@@ -988,6 +992,8 @@ export async function bulkImportCandidates(
     email?: string;
     phone?: string;
     photo_url?: string;
+    fingerprint_image_url?: string;
+    iris_image_url?: string;
     exam_date: string;
     exam_name: string;
     exam_start_date: string;
@@ -1392,6 +1398,8 @@ export async function bulkImportCandidates(
         email: r.email || null,
         phone: r.phone || null,
         photo_url: r.photo_url || null,
+        fingerprint_image_url: r.fingerprint_image_url || null,
+        iris_image_url: r.iris_image_url || null,
         exam_id: examId,
         centre_id: centreId,
         shift_id: shiftId,
