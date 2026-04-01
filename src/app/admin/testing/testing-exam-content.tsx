@@ -34,7 +34,9 @@ interface TestingCandidate {
   // Stored biometrics
   photo_url?: string | null;
   fingerprint_image_url?: string | null;
+  fingerprint_image_base64?: string | null;
   iris_image_url?: string | null;
+  iris_image_base64?: string | null;
   fingerprint_template?: string | null;
   iris_vector?: string | null;
 }
@@ -226,9 +228,17 @@ function CandidateRow({
     (v) => v.verification_result?.toLowerCase() === "success"
   );
 
-  const hasStoredFP = !!candidate.fingerprint_image_url || !!candidate.fingerprint_template;
-  const hasStoredIris = !!candidate.iris_image_url || !!candidate.iris_vector;
+  const hasStoredFP = !!candidate.fingerprint_image_url || !!candidate.fingerprint_image_base64 || !!candidate.fingerprint_template;
+  const hasStoredIris = !!candidate.iris_image_url || !!candidate.iris_image_base64 || !!candidate.iris_vector;
 
+  // Resolve sources prioritizing URL > Base64 Data URI > Icon Placeholder
+  const fpEnrolledSrc = candidate.fingerprint_image_url 
+    ? candidate.fingerprint_image_url 
+    : (candidate.fingerprint_image_base64 ? `data:image/jpeg;base64,${candidate.fingerprint_image_base64}` : (hasStoredFP ? "template" : null));
+    
+  const irisEnrolledSrc = candidate.iris_image_url 
+    ? candidate.iris_image_url 
+    : (candidate.iris_image_base64 ? `data:image/jpeg;base64,${candidate.iris_image_base64}` : (hasStoredIris ? "vector" : null));
 
   return (
     <>
@@ -251,8 +261,8 @@ function CandidateRow({
         <td className="px-3 py-2">
           <div className="flex items-center gap-2">
             <StoredThumbMini src={candidate.photo_url} icon={<Scan className="h-3 w-3" />} color="blue" title="Photo" />
-            <StoredThumbMini src={candidate.fingerprint_image_url || (hasStoredFP ? "template" : null)} icon={<Fingerprint className="h-3 w-3" />} color="indigo" title="Fingerprint" />
-            <StoredThumbMini src={candidate.iris_image_url || (hasStoredIris ? "vector" : null)} icon={<EyeIcon className="h-3 w-3" />} color="purple" title="Iris" />
+            <StoredThumbMini src={fpEnrolledSrc} icon={<Fingerprint className="h-3 w-3" />} color="indigo" title="Fingerprint" />
+            <StoredThumbMini src={irisEnrolledSrc} icon={<EyeIcon className="h-3 w-3" />} color="purple" title="Iris" />
           </div>
         </td>
 
@@ -318,7 +328,7 @@ function CandidateRow({
                     />
                     <BiometricTypeCard
                       title="Fingerprint" titleColor="text-indigo-600"
-                      enrolledSrc={candidate.fingerprint_image_url}
+                      enrolledSrc={fpEnrolledSrc}
                       capturedSrc={v.captured_fingerprint_image || v.fingerprint_image_url}
                       score={fpScore ?? (method === "fingerprint" ? score : null)}
                       result={method === "fingerprint" ? result : null}
@@ -326,7 +336,7 @@ function CandidateRow({
                     />
                     <BiometricTypeCard
                       title="IRIS" titleColor="text-purple-600"
-                      enrolledSrc={candidate.iris_image_url}
+                      enrolledSrc={irisEnrolledSrc}
                       capturedSrc={v.iris_image || v.iris_image_url}
                       score={method === "iris" ? score : null}
                       result={method === "iris" ? result : null}
