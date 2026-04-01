@@ -78,7 +78,94 @@ export async function getDashboardStats() {
   };
 }
 
+// ─── Testing Exam: Fetch all candidates + verifications for the testing exam ──
+export async function getTestingExamData() {
+  const session = await getAuthSession();
+  if (!session) return null;
+
+  const supabase = await createAdminClient();
+
+  // 1. Find the exam marked is_testing = true for this admin
+  const { data: exam, error: examError } = await supabase
+    .from("exams")
+    .select("*")
+    .eq("admin_id", session.userId)
+    .eq("is_testing", true)
+    .single();
+
+  if (examError || !exam) {
+    // Try without admin_id filter in case the testing exam belongs to any admin
+    const { data: anyExam } = await supabase
+      .from("exams")
+      .select("*")
+      .eq("is_testing", true)
+      .limit(1)
+      .single();
+
+    if (!anyExam) return { exam: null, candidates: [], verifications: [] };
+
+    return fetchTestingExamPayload(supabase, anyExam);
+  }
+
+  return fetchTestingExamPayload(supabase, exam);
+}
+
+async function fetchTestingExamPayload(supabase: any, exam: any) {
+  // 2. Load all candidates for this exam — include all biometric image fields
+  const { data: candidates, error: candidatesError } = await supabase
+    .from("candidates")
+    .select(`
+      id, roll_number, full_name, father_name,
+      verification_status, verification_attempts,
+      centre_id, shift_id, created_at,
+      photo_url, fingerprint_image_url, iris_image_url,
+      fingerprint_template, iris_vector
+    `)
+    .eq("exam_id", exam.id)
+    .order("roll_number", { ascending: true });
+
+  if (candidatesError) {
+    console.error("Error fetching testing candidates:", candidatesError);
+    return { exam, candidates: [], verifications: [] };
+  }
+
+  const candidateIds = (candidates || []).map((c: any) => c.id);
+
+  if (candidateIds.length === 0) {
+    return { exam, candidates: [], verifications: [] };
+  }
+
+  // 3. Load all verifications — include captured biometric images, match scores, and remarks
+  const { data: verifications, error: verError } = await supabase
+    .from("verifications")
+    .select(`
+      id, candidate_id, verifier_id, verifier_name,
+      verification_method, verification_result,
+      verification_percentage, confidence_score,
+      created_at, candidate_roll_no, candidate_name,
+      finger_name, eye_name, is_testing_mode, aadhaar_verified,
+      remarks,
+      captured_photo, captured_photo_url, photo_captured_url,
+      captured_fingerprint_image, fingerprint_image_url,
+      iris_image, iris_image_url
+    `)
+    .in("candidate_id", candidateIds)
+    .order("created_at", { ascending: false });
+
+
+  if (verError) {
+    console.error("Error fetching testing verifications:", verError);
+  }
+
+  return {
+    exam,
+    candidates: candidates || [],
+    verifications: verifications || [],
+  };
+}
+
 export async function getExams() {
+
   const session = await getAuthSession();
   if (!session) return [];
 

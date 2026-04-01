@@ -17,6 +17,7 @@ import {
   MapPin,
   Clock,
   Calendar,
+  FlaskConical,
 } from "lucide-react";
 
 const navigation = [
@@ -26,6 +27,7 @@ const navigation = [
   { name: "Shifts", href: "/admin/shifts", icon: Clock },
   { name: "Exam Assignments", href: "/admin/exam-assignments", icon: Calendar },
   { name: "Candidates", href: "/admin/candidates", icon: Users },
+  { name: "Testing Exam", href: "/admin/testing", icon: FlaskConical },
   { name: "Managers", href: "/admin/managers", icon: UserCog },
   { name: "Verifiers", href: "/admin/verifiers", icon: Shield },
   { name: "Monitoring", href: "/admin/monitoring", icon: Activity },
