@@ -417,7 +417,7 @@ export async function getCandidates(
   const supabase = await createAdminClient();
   let query = supabase
     .from("candidates")
-    .select("*")
+    .select("id, roll_number, full_name, father_name, email, phone, dob, gender, exam_date, photo_url, fingerprint_image_url, fingerprint_image_base64, fingerprint_template, iris_image_url, iris_image_base64, iris_vector, verification_status, verification_attempts, centre_id, shift_id, created_at, exam_id, verifications(*)")
     .in("exam_id", examIds)
     .order("created_at", { ascending: false });
 

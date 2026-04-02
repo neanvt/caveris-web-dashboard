@@ -2,39 +2,27 @@
 
 import { useEffect, useState } from "react";
 import { createClient } from "@/lib/supabase/client";
-import { useRouter } from "next/navigation";
 import {
   formatDateForDisplay,
   isDateBetween,
-  parseDDMMYYYY,
 } from "@/lib/date-utils";
 import {
-  importCandidateRow,
   bulkImportCandidates,
 } from "@/app/actions/supabase-actions";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from "@/components/ui/table";
+import { CandidateExpandableRow } from "./candidate-expandable-row";
 import {
   Upload,
   Search,
   Download,
-  Eye,
   CheckCircle,
   XCircle,
   Clock,
   FileUp,
   AlertCircle,
   X,
-  Edit,
 } from "lucide-react";
 import {
   Dialog,
@@ -111,13 +99,10 @@ interface ImportError {
 }
 
 export function CandidatesContent() {
-  const router = useRouter();
   const [candidates, setCandidates] = useState<Candidate[]>([]);
   const [exams, setExams] = useState<Exam[]>([]);
   const [centres, setCentres] = useState<Centre[]>([]);
   const [shifts, setShifts] = useState<Shift[]>([]);
-  const [managers, setManagers] = useState<Manager[]>([]);
-  const [verifiers, setVerifiers] = useState<Verifier[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState("");
   const [statusFilter, setStatusFilter] = useState("all");
@@ -165,26 +150,21 @@ export function CandidatesContent() {
         getExams,
         getCentres,
         getShifts,
-        getManagers,
-        getVerifiers,
         getCandidates,
       } = await import("@/app/actions/supabase-actions");
 
-      // Load all data using server actions
-      const [examData, centreData, shiftData, managerData, verifierData] =
-        await Promise.all([
-          getExams(),
-          getCentres(),
-          getShifts(),
-          getManagers(),
-          getVerifiers(),
-        ]);
+      // Kickoff metadata fetches in background (don't await them yet to block UI)
+      Promise.all([
+        getCentres(),
+        getShifts(),
+      ]).then(([centreData, shiftData]) => {
+        setCentres(centreData);
+        setShifts(shiftData);
+      }).catch(console.error);
+      
+      const examData = await getExams();
 
       setExams(examData);
-      setCentres(centreData);
-      setShifts(shiftData);
-      setManagers(managerData);
-      setVerifiers(verifierData);
 
       console.log("Loaded exams:", examData);
       console.log("Exams count:", examData?.length || 0);
@@ -434,7 +414,7 @@ export function CandidatesContent() {
 
       for (let i = 0; i < validRows.length; i += BATCH_SIZE) {
         const batchNumber = Math.floor(i / BATCH_SIZE) + 1;
-        const totalBatches = Math.ceil(validRows.length / BATCH_SIZE);
+        // totalBatches = Math.ceil(validRows.length / BATCH_SIZE)
 
         // Update UI
         setCurrentProcessingRow(Math.min(i + BATCH_SIZE, validRows.length));
@@ -561,7 +541,7 @@ export function CandidatesContent() {
     const examStartDate = selectedExam?.start_date || "2026-02-15";
     const examEndDate = selectedExam?.end_date || "2026-02-15";
 
-    let rawExamDate =
+    const rawExamDate =
       selectedDateForImport ||
       selectedExam?.exam_date ||
       selectedExam?.start_date ||
@@ -940,131 +920,54 @@ export function CandidatesContent() {
                 )}
             </div>
           ) : (
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead>Photo</TableHead>
-                  <TableHead>Roll Number</TableHead>
-                  <TableHead>Name</TableHead>
-                  <TableHead>Father&apos;s Name</TableHead>
-                  <TableHead>Email</TableHead>
-                  <TableHead>Phone</TableHead>
-                  <TableHead>Status</TableHead>
-                  <TableHead>Attempts</TableHead>
-                  <TableHead className="text-right">Actions</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {displayedCandidates.map((candidate) => (
-                  <TableRow key={candidate.id}>
-                    <TableCell>
-                      <img
-                        src={getSecurePhotoUrl(candidate) ?? undefined}
-                        alt={candidate.full_name}
-                        className="h-12 w-12 rounded-full object-cover"
-                        onError={(e) => {
-                          const target = e.currentTarget;
-                          target.onerror = null;
-                          target.style.display = "none";
-                          const parent = target.parentElement;
-                          if (
-                            parent &&
-                            !parent.querySelector(".fallback-avatar")
-                          ) {
-                            const fallback = document.createElement("div");
-                            fallback.className =
-                              "fallback-avatar h-12 w-12 rounded-full bg-gray-200 flex items-center justify-center";
-                            fallback.innerHTML = `<span class="text-gray-500 text-sm font-semibold">${candidate.full_name?.charAt(0)?.toUpperCase() || "?"}</span>`;
-                            parent.appendChild(fallback);
-                          }
+            <div className="overflow-x-auto">
+              <table className="w-full text-sm">
+                <thead>
+                  <tr className="border-b bg-gray-50/80 text-left text-xs font-semibold uppercase tracking-wider text-gray-500">
+                    <th className="px-4 py-3 w-8">Verif.</th>
+                    <th className="px-3 py-3">Biometrics</th>
+                    <th className="px-4 py-3">Roll No.</th>
+                    <th className="px-4 py-3">Name</th>
+                    <th className="px-4 py-3 hidden md:table-cell">Email</th>
+                    <th className="px-4 py-3 hidden lg:table-cell">Phone</th>
+                    <th className="px-4 py-3">Status</th>
+                    <th className="px-4 py-3 text-right">Actions</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {displayedCandidates.map((candidate) => {
+                    const candidateExam = exams.find(
+                      (e) => e.id === candidate.exam_id,
+                    );
+                    const isTestingExam =
+                      candidateExam?.status === "testing" ||
+                      candidateExam?.exam_name
+                        ?.toUpperCase()
+                        .includes("TESTING");
+                    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+                    const verifications = (candidate as any).verifications ?? [];
+                    return (
+                      <CandidateExpandableRow
+                        key={candidate.id}
+                        candidate={candidate}
+                        verifications={verifications}
+                        isTestingExam={!!isTestingExam}
+                        onView={() => {
+                          setSelectedCandidate(candidate);
+                          setShowDetailsModal(true);
+                        }}
+                        onEdit={() => {
+                          setSelectedCandidate(candidate);
+                          setEditPhotoFile(null);
+                          setEditPhotoPreview(null);
+                          setShowEditModal(true);
                         }}
                       />
-                    </TableCell>
-                    <TableCell>
-                      <span className="font-mono text-sm font-medium">
-                        {candidate.roll_number}
-                      </span>
-                    </TableCell>
-                    <TableCell>
-                      <p className="font-medium text-gray-900">
-                        {candidate.full_name}
-                      </p>
-                    </TableCell>
-                    <TableCell>
-                      <span className="text-sm text-gray-600">
-                        {candidate.father_name || "-"}
-                      </span>
-                    </TableCell>
-                    <TableCell>
-                      <span className="text-sm text-gray-600">
-                        {candidate.email}
-                      </span>
-                    </TableCell>
-                    <TableCell>
-                      <span className="text-sm text-gray-600">
-                        {candidate.phone}
-                      </span>
-                    </TableCell>
-                    <TableCell>
-                      <div className="flex items-center gap-2">
-                        {getStatusIcon(candidate.verification_status)}
-                        <span
-                          className={`rounded-full px-3 py-1 text-xs font-medium ${getStatusColor(candidate.verification_status)}`}
-                        >
-                          {candidate.verification_status}
-                        </span>
-                      </div>
-                    </TableCell>
-                    <TableCell>
-                      <span className="text-sm text-gray-600">
-                        {candidate.verification_attempts}/3
-                      </span>
-                    </TableCell>
-                    <TableCell className="text-right">
-                      <div className="flex justify-end gap-2">
-                        <Button
-                          variant="outline"
-                          size="sm"
-                          onClick={() => {
-                            setSelectedCandidate(candidate);
-                            setShowDetailsModal(true);
-                          }}
-                        >
-                          <Eye className="mr-2 h-4 w-4" />
-                          View
-                        </Button>
-                        {(() => {
-                          const candidateExam = exams.find(
-                            (e) => e.id === candidate.exam_id,
-                          );
-                          const isTestingExam =
-                            candidateExam?.status === "testing" ||
-                            candidateExam?.exam_name
-                              ?.toUpperCase()
-                              .includes("TESTING");
-                          return isTestingExam ? (
-                            <Button
-                              variant="outline"
-                              size="sm"
-                              onClick={() => {
-                                setSelectedCandidate(candidate);
-                                // Reset photo preview when opening modal
-                                setEditPhotoFile(null);
-                                setEditPhotoPreview(null);
-                                setShowEditModal(true);
-                              }}
-                              className="text-blue-600 hover:text-blue-700"
-                            >
-                              <Edit className="h-4 w-4" />
-                            </Button>
-                          ) : null;
-                        })()}
-                      </div>
-                    </TableCell>
-                  </TableRow>
-                ))}
-              </TableBody>
-            </Table>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
           )}
 
           {/* Lazy Loading: Load more candidates from database */}
@@ -1621,7 +1524,7 @@ export function CandidatesContent() {
                 </div>
                 <div>
                   <label className="text-sm font-medium text-gray-700">
-                    Father's Name
+                    Father&apos;s Name
                   </label>
                   <Input
                     id="edit-father-name"

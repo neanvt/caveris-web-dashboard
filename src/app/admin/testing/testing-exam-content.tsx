@@ -82,7 +82,7 @@ interface TestingExam {
 // IMPORTANT: /9j/4AAQ... is base64 JPEG but also starts with "/" — so we MUST
 // check for base64 signatures BEFORE checking for URL paths.
 function resolveImageSrc(val: string | null | undefined): string | null {
-  if (!val) return null;
+  if (!val || val === "template" || val === "vector") return null;
   // 1. Base64 JPEG/PNG/GIF — check FIRST because /9j/ starts with "/" and would
   //    otherwise match the URL check below
   if (val.startsWith("/9j/") || val.startsWith("iVBOR") || val.startsWith("R0lGO"))
@@ -101,12 +101,17 @@ function resolveImageSrc(val: string | null | undefined): string | null {
 // ─── Remarks parser ──────────────────────────────────────────────────────────
 // Parses "Face: 19% | FP: 83% | Aadhaar: false | IRIS: LEFT" into per-method scores
 function parseRemarks(remarks: string | null | undefined) {
-  if (!remarks) return { face: null, fp: null };
+  if (!remarks) return { face: null, fp: null, iris: null };
   const faceMatch = remarks.match(/Face:\s*(\d+)%/i);
   const fpMatch = remarks.match(/FP:\s*(\d+)%/i);
+  const irisMatch = remarks.match(/IRIS:\s*([A-Za-z]+)/i);
   return {
     face: faceMatch ? parseInt(faceMatch[1]) : null,
-    fp: fpMatch ? parseInt(fpMatch[1]) : null,
+    // The Ionic app puts Capture Quality inside FP: % score.
+    // > 0 indicates it was captured successfully at verification point.
+    fpCaptured: fpMatch ? parseInt(fpMatch[1]) > 0 : false, 
+    // Iris says "LEFT" or "RIGHT" typically. "n/a" means failed/skipped.
+    irisCaptured: irisMatch && irisMatch[1].toLowerCase() !== 'n/a' ? true : false,
   };
 }
 
@@ -146,9 +151,41 @@ function BiometricThumb({
 }
 
 // ─── Match score pill ─────────────────────────────────────────────────────────
-function MatchScore({ pct, result }: { pct?: number | null; result: string }) {
+function MatchScore({
+  pct,
+  result,
+  isStatusOnly = false,
+  captured = false,
+}: {
+  pct?: number | null;
+  result: string;
+  isStatusOnly?: boolean;
+  captured?: boolean;
+}) {
   const score = pct != null ? Math.round(pct) : null;
   const isOk = result?.toLowerCase() === "success";
+  
+  if (isStatusOnly) {
+    if (captured) {
+      return (
+        <div className="flex flex-col items-center gap-1">
+          <div className="flex h-14 w-14 items-center justify-center rounded-full bg-gradient-to-br from-indigo-400 to-indigo-500 text-white shadow-md">
+            <CheckCircle className="h-6 w-6" />
+          </div>
+          <span className="text-[10px] font-semibold uppercase text-indigo-600">Captured</span>
+        </div>
+      );
+    }
+    return (
+      <div className="flex flex-col items-center gap-1">
+        <div className="flex h-14 w-14 items-center justify-center rounded-full bg-gradient-to-br from-gray-300 to-gray-400 text-white shadow-md">
+          <span className="text-xl font-bold">—</span>
+        </div>
+        <span className="text-[10px] font-semibold uppercase text-gray-500">Missing</span>
+      </div>
+    );
+  }
+
   const colorClass = isOk
     ? "from-green-400 to-emerald-500 text-white"
     : score != null && score >= 60
@@ -176,11 +213,13 @@ function BiometricTypeCard({
   title, titleColor,
   enrolledSrc, capturedSrc,
   score, result, isActive,
+  isStatusOnly = false, captured = false,
 }: {
   title: string; titleColor: string;
   enrolledSrc: string | null | undefined;
   capturedSrc: string | null | undefined;
   score?: number | null; result?: string | null; isActive: boolean;
+  isStatusOnly?: boolean; captured?: boolean;
 }) {
   return (
     <div className={`flex flex-1 flex-col justify-center rounded-2xl border bg-white p-4 shadow-sm transition-all ${
@@ -195,8 +234,8 @@ function BiometricTypeCard({
 
         {/* Score */}
         <div className="flex shrink-0 flex-col items-center justify-center pt-4">
-          {score != null || (isActive && result) ? (
-            <MatchScore pct={score ?? null} result={result ?? ""} />
+          {score != null || (isActive && result) || isStatusOnly ? (
+            <MatchScore pct={score ?? null} result={result ?? ""} isStatusOnly={isStatusOnly} captured={captured} />
           ) : (
             <div className="flex h-12 w-12 items-center justify-center rounded-full border border-dashed border-gray-200 text-xs text-gray-300">—</div>
           )}
@@ -294,7 +333,8 @@ function CandidateRow({
               const method = v.verification_method?.toLowerCase();
               const score = v.verification_percentage ?? v.confidence_score;
               const result = v.verification_result;
-              const { face: faceScore, fp: fpScore } = parseRemarks(v.remarks);
+              const parsedRemarks = parseRemarks(v.remarks);
+              const faceScore = parsedRemarks.face;
               return (
                 <div>
                   {/* Shared header: method + date + verifier */}
@@ -330,17 +370,19 @@ function CandidateRow({
                       title="Fingerprint" titleColor="text-indigo-600"
                       enrolledSrc={fpEnrolledSrc}
                       capturedSrc={v.captured_fingerprint_image || v.fingerprint_image_url}
-                      score={fpScore ?? (method === "fingerprint" ? score : null)}
                       result={method === "fingerprint" ? result : null}
                       isActive={method === "fingerprint"}
+                      isStatusOnly={true}
+                      captured={parsedRemarks.fpCaptured}
                     />
                     <BiometricTypeCard
                       title="IRIS" titleColor="text-purple-600"
                       enrolledSrc={irisEnrolledSrc}
                       capturedSrc={v.iris_image || v.iris_image_url}
-                      score={method === "iris" ? score : null}
                       result={method === "iris" ? result : null}
                       isActive={method === "iris"}
+                      isStatusOnly={true}
+                      captured={parsedRemarks.irisCaptured}
                     />
                   </div>
                 </div>
