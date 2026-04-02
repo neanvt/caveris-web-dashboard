@@ -417,7 +417,7 @@ export async function getCandidates(
   const supabase = await createAdminClient();
   let query = supabase
     .from("candidates")
-    .select("id, roll_number, full_name, father_name, email, phone, dob, gender, exam_date, photo_url, fingerprint_image_url, fingerprint_image_base64, fingerprint_template, iris_image_url, iris_image_base64, iris_vector, verification_status, verification_attempts, centre_id, shift_id, created_at, exam_id, verifications(*)")
+    .select("id, roll_number, full_name, father_name, email, phone, date_of_birth, gender, photo_url, fingerprint_image_url, fingerprint_image_base64, fingerprint_template, iris_image_url, iris_image_base64, iris_vector, verification_status, verification_attempts, centre_id, shift_id, created_at, exam_id, verifications(*)")
     .in("exam_id", examIds)
     .order("created_at", { ascending: false });
 
@@ -439,7 +439,7 @@ export async function getCandidates(
   // Format exam_date field to remove time component (YYYY-MM-DD only)
   const formattedData = data?.map((candidate) => ({
     ...candidate,
-    exam_date: candidate.exam_date ? candidate.exam_date.split("T")[0] : null,
+    exam_date: (candidate as any).exam_date ? (candidate as any).exam_date.split("T")[0] : null,
   }));
 
   return formattedData || [];

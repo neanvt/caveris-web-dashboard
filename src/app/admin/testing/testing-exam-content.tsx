@@ -83,18 +83,24 @@ interface TestingExam {
 // check for base64 signatures BEFORE checking for URL paths.
 function resolveImageSrc(val: string | null | undefined): string | null {
   if (!val || val === "template" || val === "vector") return null;
-  // 1. Base64 JPEG/PNG/GIF — check FIRST because /9j/ starts with "/" and would
-  //    otherwise match the URL check below
-  if (val.startsWith("/9j/") || val.startsWith("iVBOR") || val.startsWith("R0lGO"))
-    return `data:image/jpeg;base64,${val}`;
-  // 2. Already a data URI
+  // 1. Already a data URI
   if (val.startsWith("data:image")) return val;
-  // 3. Real HTTP(S) URL or relative path
-  if (val.startsWith("http://") || val.startsWith("https://") || val.startsWith("/"))
-    return val;
-  // 4. Postgres hex bytea (\x...) — cannot display inline
+  // 2. Postgres hex bytea (\x...) — cannot display inline
   if (val.startsWith("\\x")) return null;
-  // 5. Fallback: try as raw base64
+  
+  // 3. Handle raw ISO/ANSI FMR templates (start with "FMR " -> Rk1SAC...)
+  if (val.startsWith("Rk1SAC")) return null;
+
+  // 4. Handle common base64 image headers (Check this BEFORE URLs!)
+  if (val.startsWith("/9j/")) return `data:image/jpeg;base64,${val}`;
+  if (val.startsWith("iVBOR")) return `data:image/png;base64,${val}`;
+  if (val.startsWith("R0lGO")) return `data:image/gif;base64,${val}`;
+  if (val.startsWith("Qk0")) return `data:image/bmp;base64,${val}`; // BMP 
+
+  // 5. Real HTTP(S) URL or relative path
+  if (val.startsWith("http://") || val.startsWith("https://") || val.startsWith("/")) return val;
+
+  // 6. Fallback: try as raw base64 JPEG
   return `data:image/jpeg;base64,${val}`;
 }
 
@@ -120,10 +126,12 @@ function BiometricThumb({
   src,
   label,
   color,
+  fallbackIcon,
 }: {
   src: string | null | undefined;
   label: string;
   color: string;
+  fallbackIcon?: React.ReactNode;
 }) {
   const resolved = resolveImageSrc(src);
   const [errored, setErrored] = useState(false);
@@ -133,7 +141,7 @@ function BiometricThumb({
       <p className={`text-[10px] font-semibold uppercase tracking-wider ${color}`}>
         {label}
       </p>
-      <div className="relative h-24 w-full overflow-hidden rounded-xl border border-gray-200 bg-gray-100">
+      <div className="relative flex h-24 w-full items-center justify-center overflow-hidden rounded-xl border border-gray-200 bg-gray-50">
         {resolved && !errored ? (
           // eslint-disable-next-line @next/next/no-img-element
           <img
@@ -143,7 +151,9 @@ function BiometricThumb({
             onError={() => setErrored(true)}
           />
         ) : (
-          <div className="h-full w-full rounded-xl bg-gray-100" />
+          <div className="flex h-full w-full items-center justify-center text-gray-300">
+            {fallbackIcon || <Activity className="h-8 w-8" />}
+          </div>
         )}
       </div>
     </div>
@@ -221,6 +231,12 @@ function BiometricTypeCard({
   score?: number | null; result?: string | null; isActive: boolean;
   isStatusOnly?: boolean; captured?: boolean;
 }) {
+  const FallbackIcon = title.toLowerCase() === "fingerprint" 
+    ? <Fingerprint className="h-8 w-8" />
+    : title.toLowerCase().includes("iris") || title.toLowerCase().includes("eye")
+      ? <EyeIcon className="h-8 w-8" />
+      : <Scan className="h-8 w-8" />;
+
   return (
     <div className={`flex flex-1 flex-col justify-center rounded-2xl border bg-white p-4 shadow-sm transition-all ${
       isActive ? "ring-2 ring-indigo-200 bg-indigo-50/10" : "bg-gray-50/30"
@@ -229,7 +245,7 @@ function BiometricTypeCard({
         {/* Enrolled */}
         <div className="flex flex-1 flex-col items-center">
           <span className="mb-1 text-[10px] font-bold uppercase tracking-widest text-indigo-500">Enrolled</span>
-          <BiometricThumb src={enrolledSrc} label={title} color={titleColor} />
+          <BiometricThumb src={enrolledSrc} label={title} color={titleColor} fallbackIcon={FallbackIcon} />
         </div>
 
         {/* Score */}
@@ -244,7 +260,7 @@ function BiometricTypeCard({
         {/* Captured */}
         <div className="flex flex-1 flex-col items-center">
           <span className="mb-1 text-[10px] font-bold uppercase tracking-widest text-green-500">Captured</span>
-          <BiometricThumb src={capturedSrc} label={title} color={titleColor} />
+          <BiometricThumb src={capturedSrc} label={title} color={titleColor} fallbackIcon={FallbackIcon} />
         </div>
       </div>
     </div>
@@ -372,8 +388,6 @@ function CandidateRow({
                       capturedSrc={v.captured_fingerprint_image || v.fingerprint_image_url}
                       result={method === "fingerprint" ? result : null}
                       isActive={method === "fingerprint"}
-                      isStatusOnly={true}
-                      captured={parsedRemarks.fpCaptured}
                     />
                     <BiometricTypeCard
                       title="IRIS" titleColor="text-purple-600"
@@ -381,8 +395,6 @@ function CandidateRow({
                       capturedSrc={v.iris_image || v.iris_image_url}
                       result={method === "iris" ? result : null}
                       isActive={method === "iris"}
-                      isStatusOnly={true}
-                      captured={parsedRemarks.irisCaptured}
                     />
                   </div>
                 </div>
