@@ -19,7 +19,6 @@ import {
   Activity,
 } from "lucide-react";
 
-
 // ─── Types ────────────────────────────────────────────────────────────────────
 interface TestingCandidate {
   id: string;
@@ -57,10 +56,14 @@ interface TestingVerification {
   eye_name?: string;
   is_testing_mode?: boolean;
   aadhaar_verified?: boolean;
+  fingerprint_match_score?: number | null;
+  fingerprint_quality?: number | null;
+  iris_match_score?: number | null;
+  iris_quality?: number | null;
   // Captured biometrics — real column names from verifications table
   captured_photo?: string | null;
   captured_photo_url?: string | null;
-  photo_captured_url?: string | null;         // alternate column name
+  photo_captured_url?: string | null; // alternate column name
   captured_fingerprint_image?: string | null;
   fingerprint_image_url?: string | null;
   iris_image?: string | null;
@@ -83,11 +86,21 @@ interface TestingExam {
 // check for base64 signatures BEFORE checking for URL paths.
 function resolveImageSrc(val: string | null | undefined): string | null {
   if (!val || val === "template" || val === "vector") return null;
+
+  const withSizeCap = (url: string): string => {
+    if (!url.includes("/storage/v1/object/public/")) {
+      return url;
+    }
+
+    const separator = url.includes("?") ? "&" : "?";
+    return `${url}${separator}width=500&height=500&resize=contain`;
+  };
+
   // 1. Already a data URI
   if (val.startsWith("data:image")) return val;
   // 2. Postgres hex bytea (\x...) — cannot display inline
   if (val.startsWith("\\x")) return null;
-  
+
   // 3. Handle raw ISO/ANSI FMR templates (start with "FMR " -> Rk1SAC...)
   if (val.startsWith("Rk1SAC")) return null;
 
@@ -95,10 +108,15 @@ function resolveImageSrc(val: string | null | undefined): string | null {
   if (val.startsWith("/9j/")) return `data:image/jpeg;base64,${val}`;
   if (val.startsWith("iVBOR")) return `data:image/png;base64,${val}`;
   if (val.startsWith("R0lGO")) return `data:image/gif;base64,${val}`;
-  if (val.startsWith("Qk0")) return `data:image/bmp;base64,${val}`; // BMP 
+  if (val.startsWith("Qk0")) return `data:image/bmp;base64,${val}`; // BMP
 
   // 5. Real HTTP(S) URL or relative path
-  if (val.startsWith("http://") || val.startsWith("https://") || val.startsWith("/")) return val;
+  if (
+    val.startsWith("http://") ||
+    val.startsWith("https://") ||
+    val.startsWith("/")
+  )
+    return withSizeCap(val);
 
   // 6. Fallback: try as raw base64 JPEG
   return `data:image/jpeg;base64,${val}`;
@@ -107,20 +125,91 @@ function resolveImageSrc(val: string | null | undefined): string | null {
 // ─── Remarks parser ──────────────────────────────────────────────────────────
 // Parses "Face: 19% | FP: 83% | Aadhaar: false | IRIS: LEFT" into per-method scores
 function parseRemarks(remarks: string | null | undefined) {
-  if (!remarks) return { face: null, fp: null, iris: null };
+  if (!remarks)
+    return {
+      face: null,
+      fpMatch: null,
+      fpQuality: null,
+      irisMatch: null,
+      irisCaptured: false,
+    };
   const faceMatch = remarks.match(/Face:\s*(\d+)%/i);
-  const fpMatch = remarks.match(/FP:\s*(\d+)%/i);
+  const fpMatch = remarks.match(/FP(?:\s+Match)?:\s*(\d+)%/i);
+  const fpQuality = remarks.match(/FP\s+Quality:\s*(\d+)%/i);
+  const irisScore = remarks.match(/Iris\s+Match:\s*(\d+)%/i);
   const irisMatch = remarks.match(/IRIS:\s*([A-Za-z]+)/i);
   return {
     face: faceMatch ? parseInt(faceMatch[1]) : null,
-    // The Ionic app puts Capture Quality inside FP: % score.
-    // > 0 indicates it was captured successfully at verification point.
-    fpCaptured: fpMatch ? parseInt(fpMatch[1]) > 0 : false, 
-    // Iris says "LEFT" or "RIGHT" typically. "n/a" means failed/skipped.
-    irisCaptured: irisMatch && irisMatch[1].toLowerCase() !== 'n/a' ? true : false,
+    fpMatch: fpMatch ? parseInt(fpMatch[1]) : null,
+    fpQuality: fpQuality ? parseInt(fpQuality[1]) : null,
+    irisMatch: irisScore ? parseInt(irisScore[1]) : null,
+    irisCaptured:
+      irisMatch && irisMatch[1].toLowerCase() !== "n/a" ? true : false,
   };
 }
 
+function hasFingerprintScoreEvidence(
+  verification: TestingVerification,
+): boolean {
+  const parsedRemarks = parseRemarks(verification.remarks);
+  return (
+    (verification.fingerprint_match_score ?? 0) > 0 ||
+    (verification.fingerprint_quality ?? 0) > 0 ||
+    parsedRemarks.fpMatch != null ||
+    parsedRemarks.fpQuality != null
+  );
+}
+
+function hasIrisScoreEvidence(verification: TestingVerification): boolean {
+  const parsedRemarks = parseRemarks(verification.remarks);
+  return (
+    (verification.iris_match_score ?? 0) > 0 ||
+    (verification.iris_quality ?? 0) > 0 ||
+    parsedRemarks.irisMatch != null
+  );
+}
+
+function selectFingerprintVerification(
+  verifications: TestingVerification[],
+  fallback: TestingVerification,
+): TestingVerification {
+  return (
+    verifications.find(hasFingerprintScoreEvidence) ??
+    verifications.find(
+      (x) =>
+        x.verification_method?.toLowerCase() === "fingerprint" &&
+        Boolean(
+          x.captured_fingerprint_image ||
+          x.fingerprint_image_url ||
+          parseRemarks(x.remarks).fpQuality != null,
+        ),
+    ) ??
+    verifications.find((x) =>
+      Boolean(x.captured_fingerprint_image || x.fingerprint_image_url),
+    ) ??
+    fallback
+  );
+}
+
+function selectIrisVerification(
+  verifications: TestingVerification[],
+  fallback: TestingVerification,
+): TestingVerification {
+  return (
+    verifications.find(hasIrisScoreEvidence) ??
+    verifications.find(
+      (x) =>
+        x.verification_method?.toLowerCase() === "iris" &&
+        Boolean(
+          x.iris_image ||
+          x.iris_image_url ||
+          parseRemarks(x.remarks).irisCaptured,
+        ),
+    ) ??
+    verifications.find((x) => Boolean(x.iris_image || x.iris_image_url)) ??
+    fallback
+  );
+}
 
 function BiometricThumb({
   src,
@@ -138,7 +227,9 @@ function BiometricThumb({
 
   return (
     <div className="flex w-full flex-col items-center gap-1">
-      <p className={`text-[10px] font-semibold uppercase tracking-wider ${color}`}>
+      <p
+        className={`text-[10px] font-semibold uppercase tracking-wider ${color}`}
+      >
         {label}
       </p>
       <div className="relative flex h-24 w-full items-center justify-center overflow-hidden rounded-xl border border-gray-200 bg-gray-50">
@@ -148,6 +239,8 @@ function BiometricThumb({
             src={resolved}
             alt={label}
             className="h-full w-full object-cover"
+            loading="lazy"
+            decoding="async"
             onError={() => setErrored(true)}
           />
         ) : (
@@ -174,7 +267,7 @@ function MatchScore({
 }) {
   const score = pct != null ? Math.round(pct) : null;
   const isOk = result?.toLowerCase() === "success";
-  
+
   if (isStatusOnly) {
     if (captured) {
       return (
@@ -182,7 +275,9 @@ function MatchScore({
           <div className="flex h-14 w-14 items-center justify-center rounded-full bg-gradient-to-br from-indigo-400 to-indigo-500 text-white shadow-md">
             <CheckCircle className="h-6 w-6" />
           </div>
-          <span className="text-[10px] font-semibold uppercase text-indigo-600">Captured</span>
+          <span className="text-[10px] font-semibold uppercase text-indigo-600">
+            Captured
+          </span>
         </div>
       );
     }
@@ -191,7 +286,9 @@ function MatchScore({
         <div className="flex h-14 w-14 items-center justify-center rounded-full bg-gradient-to-br from-gray-300 to-gray-400 text-white shadow-md">
           <span className="text-xl font-bold">—</span>
         </div>
-        <span className="text-[10px] font-semibold uppercase text-gray-500">Missing</span>
+        <span className="text-[10px] font-semibold uppercase text-gray-500">
+          Missing
+        </span>
       </div>
     );
   }
@@ -199,75 +296,112 @@ function MatchScore({
   const colorClass = isOk
     ? "from-green-400 to-emerald-500 text-white"
     : score != null && score >= 60
-    ? "from-yellow-400 to-orange-400 text-white"
-    : "from-red-400 to-rose-500 text-white";
+      ? "from-yellow-400 to-orange-400 text-white"
+      : "from-red-400 to-rose-500 text-white";
 
   return (
     <div className="flex flex-col items-center gap-1">
-      <div className={`flex h-14 w-14 items-center justify-center rounded-full bg-gradient-to-br ${colorClass} shadow-md`}>
+      <div
+        className={`flex h-14 w-14 items-center justify-center rounded-full bg-gradient-to-br ${colorClass} shadow-md`}
+      >
         <span className="text-sm font-bold">
           {score != null ? `${score}%` : isOk ? "✓" : "✗"}
         </span>
       </div>
-      <span className={`text-[10px] font-semibold uppercase ${isOk ? "text-green-600" : "text-red-500"}`}>
+      <span
+        className={`text-[10px] font-semibold uppercase ${isOk ? "text-green-600" : "text-red-500"}`}
+      >
         {isOk ? "Match" : "No Match"}
       </span>
     </div>
   );
 }
 
-
 // ─── Standalone card for one biometric type ───────────────────────────────────
 
 function BiometricTypeCard({
-  title, titleColor,
-  enrolledSrc, capturedSrc,
-  score, result, isActive,
-  isStatusOnly = false, captured = false,
+  title,
+  titleColor,
+  enrolledSrc,
+  capturedSrc,
+  score,
+  result,
+  isActive,
+  isStatusOnly = false,
+  captured = false,
 }: {
-  title: string; titleColor: string;
+  title: string;
+  titleColor: string;
   enrolledSrc: string | null | undefined;
   capturedSrc: string | null | undefined;
-  score?: number | null; result?: string | null; isActive: boolean;
-  isStatusOnly?: boolean; captured?: boolean;
+  score?: number | null;
+  result?: string | null;
+  isActive: boolean;
+  isStatusOnly?: boolean;
+  captured?: boolean;
 }) {
-  const FallbackIcon = title.toLowerCase() === "fingerprint" 
-    ? <Fingerprint className="h-8 w-8" />
-    : title.toLowerCase().includes("iris") || title.toLowerCase().includes("eye")
-      ? <EyeIcon className="h-8 w-8" />
-      : <Scan className="h-8 w-8" />;
+  const FallbackIcon =
+    title.toLowerCase() === "fingerprint" ? (
+      <Fingerprint className="h-8 w-8" />
+    ) : title.toLowerCase().includes("iris") ||
+      title.toLowerCase().includes("eye") ? (
+      <EyeIcon className="h-8 w-8" />
+    ) : (
+      <Scan className="h-8 w-8" />
+    );
 
   return (
-    <div className={`flex flex-1 flex-col justify-center rounded-2xl border bg-white p-4 shadow-sm transition-all ${
-      isActive ? "ring-2 ring-indigo-200 bg-indigo-50/10" : "bg-gray-50/30"
-    }`}>
+    <div
+      className={`flex flex-1 flex-col justify-center rounded-2xl border bg-white p-4 shadow-sm transition-all ${
+        isActive ? "ring-2 ring-indigo-200 bg-indigo-50/10" : "bg-gray-50/30"
+      }`}
+    >
       <div className="flex items-center justify-between gap-3">
         {/* Enrolled */}
         <div className="flex flex-1 flex-col items-center">
-          <span className="mb-1 text-[10px] font-bold uppercase tracking-widest text-indigo-500">Enrolled</span>
-          <BiometricThumb src={enrolledSrc} label={title} color={titleColor} fallbackIcon={FallbackIcon} />
+          <span className="mb-1 text-[10px] font-bold uppercase tracking-widest text-indigo-500">
+            Enrolled
+          </span>
+          <BiometricThumb
+            src={enrolledSrc}
+            label={title}
+            color={titleColor}
+            fallbackIcon={FallbackIcon}
+          />
         </div>
 
         {/* Score */}
         <div className="flex shrink-0 flex-col items-center justify-center pt-4">
           {score != null || (isActive && result) || isStatusOnly ? (
-            <MatchScore pct={score ?? null} result={result ?? ""} isStatusOnly={isStatusOnly} captured={captured} />
+            <MatchScore
+              pct={score ?? null}
+              result={result ?? ""}
+              isStatusOnly={isStatusOnly}
+              captured={captured}
+            />
           ) : (
-            <div className="flex h-12 w-12 items-center justify-center rounded-full border border-dashed border-gray-200 text-xs text-gray-300">—</div>
+            <div className="flex h-12 w-12 items-center justify-center rounded-full border border-dashed border-gray-200 text-xs text-gray-300">
+              —
+            </div>
           )}
         </div>
 
         {/* Captured */}
         <div className="flex flex-1 flex-col items-center">
-          <span className="mb-1 text-[10px] font-bold uppercase tracking-widest text-green-500">Captured</span>
-          <BiometricThumb src={capturedSrc} label={title} color={titleColor} fallbackIcon={FallbackIcon} />
+          <span className="mb-1 text-[10px] font-bold uppercase tracking-widest text-green-500">
+            Captured
+          </span>
+          <BiometricThumb
+            src={capturedSrc}
+            label={title}
+            color={titleColor}
+            fallbackIcon={FallbackIcon}
+          />
         </div>
       </div>
     </div>
   );
 }
-
-
 
 // ─── Candidate row ────────────────────────────────────────────────────────────
 function CandidateRow({
@@ -280,32 +414,52 @@ function CandidateRow({
   const [expanded, setExpanded] = useState(false);
   const cvs = verifications.filter((v) => v.candidate_id === candidate.id);
   const latestSuccess = cvs.find(
-    (v) => v.verification_result?.toLowerCase() === "success"
+    (v) => v.verification_result?.toLowerCase() === "success",
   );
 
-  const hasStoredFP = !!candidate.fingerprint_image_url || !!candidate.fingerprint_image_base64 || !!candidate.fingerprint_template;
-  const hasStoredIris = !!candidate.iris_image_url || !!candidate.iris_image_base64 || !!candidate.iris_vector;
+  const hasStoredFP =
+    !!candidate.fingerprint_image_url ||
+    !!candidate.fingerprint_image_base64 ||
+    !!candidate.fingerprint_template;
+  const hasStoredIris =
+    !!candidate.iris_image_url ||
+    !!candidate.iris_image_base64 ||
+    !!candidate.iris_vector;
 
   // Resolve sources prioritizing URL > Base64 Data URI > Icon Placeholder
-  const fpEnrolledSrc = candidate.fingerprint_image_url 
-    ? candidate.fingerprint_image_url 
-    : (candidate.fingerprint_image_base64 ? `data:image/jpeg;base64,${candidate.fingerprint_image_base64}` : (hasStoredFP ? "template" : null));
-    
-  const irisEnrolledSrc = candidate.iris_image_url 
-    ? candidate.iris_image_url 
-    : (candidate.iris_image_base64 ? `data:image/jpeg;base64,${candidate.iris_image_base64}` : (hasStoredIris ? "vector" : null));
+  const fpEnrolledSrc = candidate.fingerprint_image_url
+    ? candidate.fingerprint_image_url
+    : candidate.fingerprint_image_base64
+      ? `data:image/jpeg;base64,${candidate.fingerprint_image_base64}`
+      : hasStoredFP
+        ? "template"
+        : null;
+
+  const irisEnrolledSrc = candidate.iris_image_url
+    ? candidate.iris_image_url
+    : candidate.iris_image_base64
+      ? `data:image/jpeg;base64,${candidate.iris_image_base64}`
+      : hasStoredIris
+        ? "vector"
+        : null;
 
   return (
     <>
       {/* Summary row */}
-      <tr className={`border-b transition-colors hover:bg-gray-50 ${expanded ? "bg-indigo-50/40" : ""}`}>
+      <tr
+        className={`border-b transition-colors hover:bg-gray-50 ${expanded ? "bg-indigo-50/40" : ""}`}
+      >
         <td className="px-4 py-3">
           <button
             onClick={() => setExpanded((p) => !p)}
             disabled={cvs.length === 0}
             className="flex items-center gap-1 text-xs font-medium text-gray-500 hover:text-indigo-600 disabled:cursor-not-allowed disabled:opacity-40"
           >
-            {expanded ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
+            {expanded ? (
+              <ChevronUp className="h-4 w-4" />
+            ) : (
+              <ChevronDown className="h-4 w-4" />
+            )}
             <span className="ml-1 rounded-full bg-gray-100 px-1.5 py-0.5 text-[11px]">
               {cvs.length}
             </span>
@@ -315,24 +469,46 @@ function CandidateRow({
         {/* Stored biometric thumbnails */}
         <td className="px-3 py-2">
           <div className="flex items-center gap-2">
-            <StoredThumbMini src={candidate.photo_url} icon={<Scan className="h-3 w-3" />} color="blue" title="Photo" />
-            <StoredThumbMini src={fpEnrolledSrc} icon={<Fingerprint className="h-3 w-3" />} color="indigo" title="Fingerprint" />
-            <StoredThumbMini src={irisEnrolledSrc} icon={<EyeIcon className="h-3 w-3" />} color="purple" title="Iris" />
+            <StoredThumbMini
+              src={candidate.photo_url}
+              icon={<Scan className="h-3 w-3" />}
+              color="blue"
+              title="Photo"
+            />
+            <StoredThumbMini
+              src={fpEnrolledSrc}
+              icon={<Fingerprint className="h-3 w-3" />}
+              color="indigo"
+              title="Fingerprint"
+            />
+            <StoredThumbMini
+              src={irisEnrolledSrc}
+              icon={<EyeIcon className="h-3 w-3" />}
+              color="purple"
+              title="Iris"
+            />
           </div>
         </td>
 
-        <td className="px-4 py-3 font-mono text-sm text-gray-700">{candidate.roll_number}</td>
+        <td className="px-4 py-3 font-mono text-sm text-gray-700">
+          {candidate.roll_number}
+        </td>
         <td className="px-4 py-3">
           <p className="font-medium text-gray-900">{candidate.full_name}</p>
           {candidate.father_name && (
             <p className="text-xs text-gray-400">S/o {candidate.father_name}</p>
           )}
         </td>
-        <td className="px-4 py-3"><StatusPill status={candidate.verification_status} /></td>
+        <td className="px-4 py-3">
+          <StatusPill status={candidate.verification_status} />
+        </td>
         <td className="px-4 py-3 text-xs text-gray-400">
           {latestSuccess
             ? new Date(latestSuccess.created_at).toLocaleString("en-IN", {
-                day: "2-digit", month: "short", hour: "2-digit", minute: "2-digit",
+                day: "2-digit",
+                month: "short",
+                hour: "2-digit",
+                minute: "2-digit",
               })
             : "—"}
         </td>
@@ -343,63 +519,156 @@ function CandidateRow({
         <tr className="border-b bg-gradient-to-b from-indigo-50/30 to-white">
           <td colSpan={6} className="px-4 py-4">
             {cvs.length === 0 ? (
-              <p className="text-center text-sm text-gray-400">No verification attempts yet.</p>
-            ) : (() => {
-              const v = cvs[0]; // latest verification
-              const method = v.verification_method?.toLowerCase();
-              const score = v.verification_percentage ?? v.confidence_score;
-              const result = v.verification_result;
-              const parsedRemarks = parseRemarks(v.remarks);
-              const faceScore = parsedRemarks.face;
-              return (
-                <div>
-                  {/* Shared header: method + date + verifier */}
-                  <div className="mb-3 flex items-center justify-between px-1">
-                    <div className="flex items-center gap-2">
-                      <MethodIcon method={method} />
-                      <span className="text-sm font-semibold capitalize text-gray-700">
-                        {method === "face" ? "Face Scan" : method === "fingerprint" ? `Fingerprint${v.finger_name ? ` (${v.finger_name})` : ""}` : method === "iris" ? `Iris${v.eye_name ? ` (${v.eye_name})` : ""}` : method}
-                      </span>
-                      {v.aadhaar_verified != null && (
-                        <span className={`rounded-full px-2 py-0.5 text-[11px] font-medium ${v.aadhaar_verified ? "bg-orange-100 text-orange-700" : "bg-gray-100 text-gray-400"}`}>
-                          Aadhaar {v.aadhaar_verified ? "✓" : "✗"}
-                        </span>
-                      )}
-                    </div>
-                    <div className="flex items-center gap-3 text-[11px] text-gray-400">
-                      {v.verifier_name && <span>by <span className="font-medium text-gray-600">{v.verifier_name}</span></span>}
-                      <span>{new Date(v.created_at).toLocaleString("en-IN", { day: "2-digit", month: "short", hour: "2-digit", minute: "2-digit" })}</span>
-                    </div>
-                  </div>
+              <p className="text-center text-sm text-gray-400">
+                No verification attempts yet.
+              </p>
+            ) : (
+              (() => {
+                const v = cvs[0]; // latest verification
+                const fpv = selectFingerprintVerification(cvs, v);
+                const iv = selectIrisVerification(cvs, v);
+                const method = v.verification_method?.toLowerCase();
+                const score = v.verification_percentage ?? v.confidence_score;
+                const result = v.verification_result;
+                const parsedRemarks = parseRemarks(v.remarks);
+                const fpRemarks = parseRemarks(fpv.remarks);
+                const irisRemarks = parseRemarks(iv.remarks);
+                const faceScore = parsedRemarks.face;
 
-                  {/* 3 biometric type cards in a row */}
-                  <div className="flex gap-4">
-                    <BiometricTypeCard
-                      title="Face" titleColor="text-blue-600"
-                      enrolledSrc={candidate.photo_url}
-                      capturedSrc={v.captured_photo || v.captured_photo_url || v.photo_captured_url}
-                      score={faceScore ?? (method === "face" ? score : null)}
-                      result={method === "face" ? result : null}
-                      isActive={method === "face"}
-                    />
-                    <BiometricTypeCard
-                      title="Fingerprint" titleColor="text-indigo-600"
-                      enrolledSrc={fpEnrolledSrc}
-                      capturedSrc={v.captured_fingerprint_image || v.fingerprint_image_url}
-                      result={method === "fingerprint" ? result : null}
-                      isActive={method === "fingerprint"}
-                    />
-                    <BiometricTypeCard
-                      title="IRIS" titleColor="text-purple-600"
-                      enrolledSrc={irisEnrolledSrc}
-                      capturedSrc={v.iris_image || v.iris_image_url}
-                      result={method === "iris" ? result : null}
-                      isActive={method === "iris"}
-                    />
+                // DB columns default to 0 for some historical rows; treat 0 as "unknown" unless we have explicit scoring evidence.
+                const hasFingerprintScore = hasFingerprintScoreEvidence(fpv);
+                const hasIrisScore = hasIrisScoreEvidence(iv);
+
+                const fingerprintScore = hasFingerprintScore
+                  ? fpv.fingerprint_match_score
+                  : (fpRemarks.fpMatch ?? null);
+
+                const irisScore = hasIrisScore
+                  ? iv.iris_match_score
+                  : (irisRemarks.irisMatch ?? null);
+
+                const fingerprintCaptured = Boolean(
+                  fpv.captured_fingerprint_image ||
+                  fpv.fingerprint_image_url ||
+                  (fpRemarks.fpQuality != null && fpRemarks.fpQuality > 0),
+                );
+                const irisCaptured = Boolean(
+                  iv.iris_image ||
+                  iv.iris_image_url ||
+                  irisRemarks.irisCaptured,
+                );
+                const inferredFingerprintResult =
+                  fingerprintScore != null
+                    ? fingerprintScore >= 68
+                      ? "success"
+                      : "failed"
+                    : null;
+                const inferredIrisResult =
+                  irisScore != null
+                    ? irisScore >= 72
+                      ? "success"
+                      : "failed"
+                    : null;
+                return (
+                  <div>
+                    {/* Shared header: method + date + verifier */}
+                    <div className="mb-3 flex items-center justify-between px-1">
+                      <div className="flex items-center gap-2">
+                        <MethodIcon method={method} />
+                        <span className="text-sm font-semibold capitalize text-gray-700">
+                          {method === "face"
+                            ? "Face Scan"
+                            : method === "fingerprint"
+                              ? `Fingerprint${v.finger_name ? ` (${v.finger_name})` : ""}`
+                              : method === "iris"
+                                ? `Iris${v.eye_name ? ` (${v.eye_name})` : ""}`
+                                : method}
+                        </span>
+                        {v.aadhaar_verified != null && (
+                          <span
+                            className={`rounded-full px-2 py-0.5 text-[11px] font-medium ${v.aadhaar_verified ? "bg-orange-100 text-orange-700" : "bg-gray-100 text-gray-400"}`}
+                          >
+                            Aadhaar {v.aadhaar_verified ? "✓" : "✗"}
+                          </span>
+                        )}
+                      </div>
+                      <div className="flex items-center gap-3 text-[11px] text-gray-400">
+                        {v.verifier_name && (
+                          <span>
+                            by{" "}
+                            <span className="font-medium text-gray-600">
+                              {v.verifier_name}
+                            </span>
+                          </span>
+                        )}
+                        <span>
+                          {new Date(v.created_at).toLocaleString("en-IN", {
+                            day: "2-digit",
+                            month: "short",
+                            hour: "2-digit",
+                            minute: "2-digit",
+                          })}
+                        </span>
+                      </div>
+                    </div>
+
+                    {/* 3 biometric type cards in a row */}
+                    <div className="flex gap-4">
+                      <BiometricTypeCard
+                        title="Face"
+                        titleColor="text-blue-600"
+                        enrolledSrc={candidate.photo_url}
+                        capturedSrc={
+                          v.captured_photo ||
+                          v.captured_photo_url ||
+                          v.photo_captured_url
+                        }
+                        score={faceScore ?? (method === "face" ? score : null)}
+                        result={method === "face" ? result : null}
+                        isActive={method === "face"}
+                      />
+                      <BiometricTypeCard
+                        title="Fingerprint"
+                        titleColor="text-indigo-600"
+                        enrolledSrc={fpEnrolledSrc}
+                        capturedSrc={
+                          fpv.captured_fingerprint_image ||
+                          fpv.fingerprint_image_url
+                        }
+                        score={fingerprintScore}
+                        result={
+                          method === "fingerprint"
+                            ? result
+                            : (inferredFingerprintResult ??
+                              fpv.verification_result ??
+                              null)
+                        }
+                        isStatusOnly={fingerprintScore == null}
+                        captured={fingerprintCaptured}
+                        isActive={method === "fingerprint"}
+                      />
+                      <BiometricTypeCard
+                        title="IRIS"
+                        titleColor="text-purple-600"
+                        enrolledSrc={irisEnrolledSrc}
+                        capturedSrc={iv.iris_image || iv.iris_image_url}
+                        score={irisScore}
+                        result={
+                          method === "iris"
+                            ? result
+                            : (inferredIrisResult ??
+                              iv.verification_result ??
+                              null)
+                        }
+                        isStatusOnly={irisScore == null}
+                        captured={irisCaptured}
+                        isActive={method === "iris"}
+                      />
+                    </div>
                   </div>
-                </div>
-              );
-            })()}
+                );
+              })()
+            )}
           </td>
         </tr>
       )}
@@ -419,7 +688,9 @@ function StoredThumbMini({
   color: "blue" | "indigo" | "purple";
   title: string;
 }) {
-  const resolved = resolveImageSrc(src === "template" || src === "vector" ? null : src);
+  const resolved = resolveImageSrc(
+    src === "template" || src === "vector" ? null : src,
+  );
   const [errored, setErrored] = useState(false);
   const hasData = !!src; // true if URL or template/vector exists
   const colorMap = {
@@ -434,22 +705,31 @@ function StoredThumbMini({
   };
 
   return (
-    <div title={title} className={`relative h-10 w-10 overflow-hidden rounded-lg ring-1 ${hasData ? colorMap[color] : "ring-gray-200 bg-gray-50"}`}>
+    <div
+      title={title}
+      className={`relative h-10 w-10 overflow-hidden rounded-lg ring-1 ${hasData ? colorMap[color] : "ring-gray-200 bg-gray-50"}`}
+    >
       {resolved && !errored && hasData ? (
         // eslint-disable-next-line @next/next/no-img-element
         <img
           src={resolved}
           alt={title}
           className="h-full w-full object-cover"
+          loading="lazy"
+          decoding="async"
           onError={() => setErrored(true)}
         />
       ) : (
-        <div className={`flex h-full w-full items-center justify-center ${hasData ? iconColorMap[color] : "text-gray-200"}`}>
+        <div
+          className={`flex h-full w-full items-center justify-center ${hasData ? iconColorMap[color] : "text-gray-200"}`}
+        >
           {icon}
         </div>
       )}
       {/* Enrollment dot */}
-      <span className={`absolute bottom-0.5 right-0.5 h-1.5 w-1.5 rounded-full ${hasData ? `bg-${color}-500` : "bg-gray-300"}`} />
+      <span
+        className={`absolute bottom-0.5 right-0.5 h-1.5 w-1.5 rounded-full ${hasData ? `bg-${color}-500` : "bg-gray-300"}`}
+      />
     </div>
   );
 }
@@ -464,22 +744,36 @@ function StatusPill({ status }: { status: string }) {
     absent: "bg-gray-100 text-gray-600",
   };
   return (
-    <span className={`inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-medium capitalize ${cfg[s] ?? "bg-gray-100 text-gray-600"}`}>
+    <span
+      className={`inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-medium capitalize ${cfg[s] ?? "bg-gray-100 text-gray-600"}`}
+    >
       {status || "—"}
     </span>
   );
 }
 
 function MethodIcon({ method }: { method: string }) {
-  if (method === "fingerprint") return <Fingerprint className="h-4 w-4 text-indigo-500" />;
+  if (method === "fingerprint")
+    return <Fingerprint className="h-4 w-4 text-indigo-500" />;
   if (method === "iris") return <EyeIcon className="h-4 w-4 text-purple-500" />;
   if (method === "face") return <Scan className="h-4 w-4 text-blue-500" />;
-  if (method === "aadhaar") return <CreditCard className="h-4 w-4 text-orange-500" />;
+  if (method === "aadhaar")
+    return <CreditCard className="h-4 w-4 text-orange-500" />;
   return <Activity className="h-4 w-4 text-gray-400" />;
 }
 
-function StatCard({ icon, label, value, color, sub }: {
-  icon: React.ReactNode; label: string; value: number | string; color: string; sub?: string;
+function StatCard({
+  icon,
+  label,
+  value,
+  color,
+  sub,
+}: {
+  icon: React.ReactNode;
+  label: string;
+  value: number | string;
+  color: string;
+  sub?: string;
 }) {
   return (
     <div className="rounded-2xl border bg-white p-5 shadow-sm">
@@ -510,7 +804,21 @@ export function TestingExamContent() {
     if (showRefresh) setRefreshing(true);
     else setLoading(true);
     try {
-      const { getTestingExamData } = await import("@/app/actions/supabase-actions");
+      const { getTestingExamData } =
+        await import("@/app/actions/supabase-actions");
+
+      try {
+        const { backfillBiometricScores } =
+          await import("@/lib/api/verification-api");
+        // Ensure rows with biometric images but 0/null scores are recomputed before fetching.
+        await backfillBiometricScores(500);
+      } catch (backfillErr) {
+        console.warn(
+          "Biometric score backfill failed, continuing with current data",
+          backfillErr,
+        );
+      }
+
       const data = await getTestingExamData();
       if (data) {
         setExam(data.exam);
@@ -525,31 +833,60 @@ export function TestingExamContent() {
     }
   };
 
-  useEffect(() => { load(); }, []);
+  useEffect(() => {
+    load();
+  }, []);
 
   const stats = useMemo(() => {
     const total = candidates.length;
-    const verified = candidates.filter((c) => c.verification_status === "verified").length;
-    const pending = candidates.filter((c) => c.verification_status === "pending").length;
-    const failed = candidates.filter((c) => c.verification_status === "failed").length;
+    const verified = candidates.filter(
+      (c) => c.verification_status === "verified",
+    ).length;
+    const pending = candidates.filter(
+      (c) => c.verification_status === "pending",
+    ).length;
+    const failed = candidates.filter(
+      (c) => c.verification_status === "failed",
+    ).length;
     const totalAttempts = verifications.length;
-    const successAttempts = verifications.filter((v) => v.verification_result?.toLowerCase() === "success").length;
+    const successAttempts = verifications.filter(
+      (v) => v.verification_result?.toLowerCase() === "success",
+    ).length;
     const pct = total > 0 ? Math.round((verified / total) * 100) : 0;
-    return { total, verified, pending, failed, totalAttempts, successAttempts, pct };
+    return {
+      total,
+      verified,
+      pending,
+      failed,
+      totalAttempts,
+      successAttempts,
+      pct,
+    };
   }, [candidates, verifications]);
 
   const methods = useMemo(
-    () => [...new Set(verifications.map((v) => v.verification_method).filter(Boolean))],
-    [verifications]
+    () => [
+      ...new Set(
+        verifications.map((v) => v.verification_method).filter(Boolean),
+      ),
+    ],
+    [verifications],
   );
 
   const filtered = useMemo(() => {
     const q = search.toLowerCase();
     return candidates.filter((c) => {
-      const matchSearch = !q || c.full_name.toLowerCase().includes(q) || c.roll_number.toLowerCase().includes(q) || (c.father_name ?? "").toLowerCase().includes(q);
-      const matchStatus = statusFilter === "all" || c.verification_status === statusFilter;
+      const matchSearch =
+        !q ||
+        c.full_name.toLowerCase().includes(q) ||
+        c.roll_number.toLowerCase().includes(q) ||
+        (c.father_name ?? "").toLowerCase().includes(q);
+      const matchStatus =
+        statusFilter === "all" || c.verification_status === statusFilter;
       const cvs = verifications.filter((v) => v.candidate_id === c.id);
-      const matchMethod = methodFilter === "all" || cvs.some((v) => v.verification_method === methodFilter);
+      const matchMethod =
+        methodFilter === "all" ||
+        cvs.some((v) => v.verification_method === methodFilter);
       return matchSearch && matchStatus && matchMethod;
     });
   }, [candidates, verifications, search, statusFilter, methodFilter]);
@@ -570,8 +907,13 @@ export function TestingExamContent() {
       <div className="flex h-full flex-col items-center justify-center gap-4 p-10 text-center">
         <div className="rounded-2xl bg-yellow-50 p-6">
           <AlertTriangle className="mx-auto h-12 w-12 text-yellow-400" />
-          <h2 className="mt-3 text-xl font-semibold text-gray-800">No Testing Exam Found</h2>
-          <p className="mt-1 text-sm text-gray-500">Mark an exam as <strong>Testing Exam</strong> from the Exams page to see its data here.</p>
+          <h2 className="mt-3 text-xl font-semibold text-gray-800">
+            No Testing Exam Found
+          </h2>
+          <p className="mt-1 text-sm text-gray-500">
+            Mark an exam as <strong>Testing Exam</strong> from the Exams page to
+            see its data here.
+          </p>
         </div>
       </div>
     );
@@ -586,10 +928,14 @@ export function TestingExamContent() {
             <FlaskConical className="h-6 w-6 text-indigo-600" />
           </div>
           <div>
-            <h1 className="text-2xl font-bold text-gray-900">Testing Exam Dashboard</h1>
+            <h1 className="text-2xl font-bold text-gray-900">
+              Testing Exam Dashboard
+            </h1>
             <p className="text-sm text-gray-500">
               {exam.exam_name}{" "}
-              <span className="rounded bg-indigo-100 px-1.5 py-0.5 text-xs font-mono text-indigo-700">{exam.exam_code}</span>
+              <span className="rounded bg-indigo-100 px-1.5 py-0.5 text-xs font-mono text-indigo-700">
+                {exam.exam_code}
+              </span>
             </p>
           </div>
         </div>
@@ -598,35 +944,84 @@ export function TestingExamContent() {
           disabled={refreshing}
           className="flex items-center gap-2 rounded-lg border bg-white px-4 py-2 text-sm font-medium text-gray-600 shadow-sm transition hover:bg-gray-50 disabled:opacity-50"
         >
-          <RefreshCw className={`h-4 w-4 ${refreshing ? "animate-spin" : ""}`} />
+          <RefreshCw
+            className={`h-4 w-4 ${refreshing ? "animate-spin" : ""}`}
+          />
           Refresh
         </button>
       </div>
 
       {/* Stats */}
       <div className="grid grid-cols-2 gap-4 md:grid-cols-3 lg:grid-cols-6">
-        <StatCard icon={<Users className="h-6 w-6 text-indigo-600" />} label="Total" value={stats.total} color="text-indigo-700" />
-        <StatCard icon={<CheckCircle className="h-6 w-6 text-green-600" />} label="Verified" value={stats.verified} color="text-green-700" sub={`${stats.pct}% complete`} />
-        <StatCard icon={<Clock className="h-6 w-6 text-yellow-500" />} label="Pending" value={stats.pending} color="text-yellow-700" />
-        <StatCard icon={<XCircle className="h-6 w-6 text-red-500" />} label="Failed" value={stats.failed} color="text-red-700" />
-        <StatCard icon={<Activity className="h-6 w-6 text-purple-500" />} label="Attempts" value={stats.totalAttempts} color="text-purple-700" />
-        <StatCard icon={<CheckCircle className="h-6 w-6 text-teal-500" />} label="Successful" value={stats.successAttempts} color="text-teal-700"
-          sub={`${stats.totalAttempts > 0 ? Math.round((stats.successAttempts / stats.totalAttempts) * 100) : 0}% pass`} />
+        <StatCard
+          icon={<Users className="h-6 w-6 text-indigo-600" />}
+          label="Total"
+          value={stats.total}
+          color="text-indigo-700"
+        />
+        <StatCard
+          icon={<CheckCircle className="h-6 w-6 text-green-600" />}
+          label="Verified"
+          value={stats.verified}
+          color="text-green-700"
+          sub={`${stats.pct}% complete`}
+        />
+        <StatCard
+          icon={<Clock className="h-6 w-6 text-yellow-500" />}
+          label="Pending"
+          value={stats.pending}
+          color="text-yellow-700"
+        />
+        <StatCard
+          icon={<XCircle className="h-6 w-6 text-red-500" />}
+          label="Failed"
+          value={stats.failed}
+          color="text-red-700"
+        />
+        <StatCard
+          icon={<Activity className="h-6 w-6 text-purple-500" />}
+          label="Attempts"
+          value={stats.totalAttempts}
+          color="text-purple-700"
+        />
+        <StatCard
+          icon={<CheckCircle className="h-6 w-6 text-teal-500" />}
+          label="Successful"
+          value={stats.successAttempts}
+          color="text-teal-700"
+          sub={`${stats.totalAttempts > 0 ? Math.round((stats.successAttempts / stats.totalAttempts) * 100) : 0}% pass`}
+        />
       </div>
 
       {/* Progress bar */}
       <div className="rounded-xl border bg-white p-4 shadow-sm">
         <div className="mb-2 flex items-center justify-between text-sm">
-          <span className="font-medium text-gray-700">Verification Progress</span>
-          <span className="font-semibold text-indigo-600">{stats.verified} / {stats.total} ({stats.pct}%)</span>
+          <span className="font-medium text-gray-700">
+            Verification Progress
+          </span>
+          <span className="font-semibold text-indigo-600">
+            {stats.verified} / {stats.total} ({stats.pct}%)
+          </span>
         </div>
         <div className="h-3 w-full overflow-hidden rounded-full bg-gray-100">
-          <div className="h-full rounded-full bg-gradient-to-r from-indigo-500 to-green-500 transition-all duration-700" style={{ width: `${stats.pct}%` }} />
+          <div
+            className="h-full rounded-full bg-gradient-to-r from-indigo-500 to-green-500 transition-all duration-700"
+            style={{ width: `${stats.pct}%` }}
+          />
         </div>
         <div className="mt-2 flex gap-4 text-xs text-gray-400">
-          <span className="flex items-center gap-1"><span className="h-2 w-2 rounded-full bg-green-500" /> Verified: {stats.verified}</span>
-          <span className="flex items-center gap-1"><span className="h-2 w-2 rounded-full bg-yellow-400" /> Pending: {stats.pending}</span>
-          <span className="flex items-center gap-1"><span className="h-2 w-2 rounded-full bg-red-400" /> Failed: {stats.failed}</span>
+          <span className="flex items-center gap-1">
+            <span className="h-2 w-2 rounded-full bg-green-500" /> Verified:{" "}
+            {stats.verified}
+          </span>
+          <span className="flex items-center gap-1">
+            <span className="h-2 w-2 rounded-full bg-yellow-400" /> Pending:{" "}
+            {stats.pending}
+          </span>
+          <span className="flex items-center gap-1">
+            <span className="h-2 w-2 rounded-full bg-red-400" /> Failed:{" "}
+            {stats.failed}
+          </span>
         </div>
       </div>
 
@@ -642,32 +1037,51 @@ export function TestingExamContent() {
             className="w-full rounded-lg border pl-10 pr-4 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-300"
           />
         </div>
-        <select value={statusFilter} onChange={(e) => setStatusFilter(e.target.value)}
-          className="rounded-lg border px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-300">
+        <select
+          value={statusFilter}
+          onChange={(e) => setStatusFilter(e.target.value)}
+          className="rounded-lg border px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-300"
+        >
           <option value="all">All Status</option>
           <option value="pending">Pending</option>
           <option value="verified">Verified</option>
           <option value="failed">Failed</option>
           <option value="absent">Absent</option>
         </select>
-        <select value={methodFilter} onChange={(e) => setMethodFilter(e.target.value)}
-          className="rounded-lg border px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-300">
+        <select
+          value={methodFilter}
+          onChange={(e) => setMethodFilter(e.target.value)}
+          className="rounded-lg border px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-300"
+        >
           <option value="all">All Methods</option>
           {methods.map((m) => (
-            <option key={m} value={m}>{m.charAt(0).toUpperCase() + m.slice(1)}</option>
+            <option key={m} value={m}>
+              {m.charAt(0).toUpperCase() + m.slice(1)}
+            </option>
           ))}
         </select>
-        <span className="ml-auto text-sm text-gray-400">{filtered.length} of {candidates.length} candidates</span>
+        <span className="ml-auto text-sm text-gray-400">
+          {filtered.length} of {candidates.length} candidates
+        </span>
       </div>
 
       {/* Legend */}
       <div className="flex flex-wrap items-center gap-4 rounded-xl border bg-white px-4 py-3 text-xs text-gray-500 shadow-sm">
         <span className="font-semibold text-gray-600">Stored biometrics:</span>
-        <span className="flex items-center gap-1"><Scan className="h-3.5 w-3.5 text-blue-400" /> Photo</span>
-        <span className="flex items-center gap-1"><Fingerprint className="h-3.5 w-3.5 text-indigo-400" /> Fingerprint</span>
-        <span className="flex items-center gap-1"><EyeIcon className="h-3.5 w-3.5 text-purple-400" /> Iris</span>
+        <span className="flex items-center gap-1">
+          <Scan className="h-3.5 w-3.5 text-blue-400" /> Photo
+        </span>
+        <span className="flex items-center gap-1">
+          <Fingerprint className="h-3.5 w-3.5 text-indigo-400" /> Fingerprint
+        </span>
+        <span className="flex items-center gap-1">
+          <EyeIcon className="h-3.5 w-3.5 text-purple-400" /> Iris
+        </span>
         <span className="ml-2 text-gray-300">|</span>
-        <span className="text-gray-400">Click ▾ to expand and see Enrolled vs Captured comparison with match score.</span>
+        <span className="text-gray-400">
+          Click ▾ to expand and see Enrolled vs Captured comparison with match
+          score.
+        </span>
       </div>
 
       {/* Candidates Table */}
@@ -687,9 +1101,14 @@ export function TestingExamContent() {
             <tbody>
               {filtered.length === 0 ? (
                 <tr>
-                  <td colSpan={6} className="px-4 py-12 text-center text-gray-400">
+                  <td
+                    colSpan={6}
+                    className="px-4 py-12 text-center text-gray-400"
+                  >
                     <Users className="mx-auto mb-2 h-10 w-10 text-gray-200" />
-                    {candidates.length === 0 ? "No candidates enrolled in the testing exam yet." : "No candidates match your filters."}
+                    {candidates.length === 0
+                      ? "No candidates enrolled in the testing exam yet."
+                      : "No candidates match your filters."}
                   </td>
                 </tr>
               ) : (

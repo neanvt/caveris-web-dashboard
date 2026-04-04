@@ -79,33 +79,56 @@ function StatusBadge({ status }: { status: string }) {
   if (status === "verified") {
     return (
       <Badge className="bg-green-100 text-green-800 border-green-200">
-        <CheckCircle className="mr-1 h-3 w-3" />Verified
+        <CheckCircle className="mr-1 h-3 w-3" />
+        Verified
       </Badge>
     );
   }
   if (status === "absent") {
     return (
       <Badge className="bg-red-100 text-red-800 border-red-200">
-        <XCircle className="mr-1 h-3 w-3" />Absent
+        <XCircle className="mr-1 h-3 w-3" />
+        Absent
       </Badge>
     );
   }
   return (
     <Badge className="bg-amber-100 text-amber-800 border-amber-200">
-      <Clock className="mr-1 h-3 w-3" />Pending
+      <Clock className="mr-1 h-3 w-3" />
+      Pending
     </Badge>
   );
 }
 
-function SortIcon({ col, sortKey, sortDir }: { col: SortKey; sortKey: SortKey; sortDir: SortDir }) {
-  if (col !== sortKey) return <ArrowUpDown className="ml-1 h-3 w-3 text-gray-300 inline" />;
-  return sortDir === "asc"
-    ? <ArrowUp className="ml-1 h-3 w-3 text-indigo-600 inline" />
-    : <ArrowDown className="ml-1 h-3 w-3 text-indigo-600 inline" />;
+function SortIcon({
+  col,
+  sortKey,
+  sortDir,
+}: {
+  col: SortKey;
+  sortKey: SortKey;
+  sortDir: SortDir;
+}) {
+  if (col !== sortKey)
+    return <ArrowUpDown className="ml-1 h-3 w-3 text-gray-300 inline" />;
+  return sortDir === "asc" ? (
+    <ArrowUp className="ml-1 h-3 w-3 text-indigo-600 inline" />
+  ) : (
+    <ArrowDown className="ml-1 h-3 w-3 text-indigo-600 inline" />
+  );
 }
 
-function SortableHead({ col, label, sortKey, sortDir, onSort }: {
-  col: SortKey; label: string; sortKey: SortKey; sortDir: SortDir;
+function SortableHead({
+  col,
+  label,
+  sortKey,
+  sortDir,
+  onSort,
+}: {
+  col: SortKey;
+  label: string;
+  sortKey: SortKey;
+  sortDir: SortDir;
   onSort: (col: SortKey) => void;
 }) {
   return (
@@ -121,14 +144,21 @@ function SortableHead({ col, label, sortKey, sortDir, onSort }: {
   );
 }
 
-function CandidateDetailModal({ candidateId, onClose }: { candidateId: string; onClose: () => void }) {
+function CandidateDetailModal({
+  candidateId,
+  onClose,
+}: {
+  candidateId: string;
+  onClose: () => void;
+}) {
   const [detail, setDetail] = useState<CandidateDetail | null>(null);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     const loadDetail = async () => {
       try {
-        const { getManagerCandidateDetail } = await import("@/app/actions/supabase-actions");
+        const { getManagerCandidateDetail } =
+          await import("@/app/actions/supabase-actions");
         const data = await getManagerCandidateDetail(candidateId);
         setDetail(data as any);
       } catch (err) {
@@ -149,13 +179,21 @@ function CandidateDetailModal({ candidateId, onClose }: { candidateId: string; o
   const methodBadge = (method: string) => {
     const map: Record<string, { label: string; color: string }> = {
       face: { label: "Face", color: "bg-blue-100 text-blue-800" },
-      fingerprint: { label: "Fingerprint", color: "bg-purple-100 text-purple-800" },
+      fingerprint: {
+        label: "Fingerprint",
+        color: "bg-purple-100 text-purple-800",
+      },
       iris: { label: "Iris", color: "bg-cyan-100 text-cyan-800" },
       aadhaar: { label: "Aadhaar", color: "bg-orange-100 text-orange-800" },
     };
-    const m = map[method] || { label: method, color: "bg-gray-100 text-gray-800" };
+    const m = map[method] || {
+      label: method,
+      color: "bg-gray-100 text-gray-800",
+    };
     return (
-      <span className={`inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium ${m.color}`}>
+      <span
+        className={`inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium ${m.color}`}
+      >
         {m.label}
       </span>
     );
@@ -205,9 +243,13 @@ function CandidateDetailModal({ candidateId, onClose }: { candidateId: string; o
                 )}
               </div>
               <div className="flex-1 min-w-0">
-                <h2 className="text-xl font-bold text-gray-900">{detail.full_name}</h2>
+                <h2 className="text-xl font-bold text-gray-900">
+                  {detail.full_name}
+                </h2>
                 {detail.father_name && (
-                  <p className="text-sm text-gray-600">S/D/W of {detail.father_name}</p>
+                  <p className="text-sm text-gray-600">
+                    S/D/W of {detail.father_name}
+                  </p>
                 )}
                 <div className="mt-2 flex items-center gap-2 flex-wrap">
                   <StatusBadge status={detail.verification_status} />
@@ -234,36 +276,52 @@ function CandidateDetailModal({ candidateId, onClose }: { candidateId: string; o
             {/* Personal Info */}
             <div className="grid grid-cols-2 gap-3 border rounded-lg p-4 bg-gray-50">
               <div>
-                <p className="text-xs text-gray-500 uppercase tracking-wide">Date of Birth</p>
+                <p className="text-xs text-gray-500 uppercase tracking-wide">
+                  Date of Birth
+                </p>
                 <p className="mt-0.5 text-sm font-medium">
-                  {detail.date_of_birth ? new Date(detail.date_of_birth).toLocaleDateString("en-IN") : "—"}
+                  {detail.date_of_birth
+                    ? new Date(detail.date_of_birth).toLocaleDateString("en-IN")
+                    : "—"}
                 </p>
               </div>
               {detail.aadhaar_number && (
                 <div>
-                  <p className="text-xs text-gray-500 uppercase tracking-wide">Aadhaar</p>
-                  <p className="mt-0.5 text-sm font-medium">{detail.aadhaar_number}</p>
+                  <p className="text-xs text-gray-500 uppercase tracking-wide">
+                    Aadhaar
+                  </p>
+                  <p className="mt-0.5 text-sm font-medium">
+                    {detail.aadhaar_number}
+                  </p>
                 </div>
               )}
               {detail.phone && (
                 <div>
-                  <p className="text-xs text-gray-500 uppercase tracking-wide">Phone</p>
+                  <p className="text-xs text-gray-500 uppercase tracking-wide">
+                    Phone
+                  </p>
                   <p className="mt-0.5 text-sm font-medium flex items-center gap-1">
-                    <Phone className="h-3.5 w-3.5 text-gray-400" />{detail.phone}
+                    <Phone className="h-3.5 w-3.5 text-gray-400" />
+                    {detail.phone}
                   </p>
                 </div>
               )}
               {detail.email && (
                 <div className="col-span-2">
-                  <p className="text-xs text-gray-500 uppercase tracking-wide">Email</p>
+                  <p className="text-xs text-gray-500 uppercase tracking-wide">
+                    Email
+                  </p>
                   <p className="mt-0.5 text-sm font-medium flex items-center gap-1">
-                    <Mail className="h-3.5 w-3.5 text-gray-400" />{detail.email}
+                    <Mail className="h-3.5 w-3.5 text-gray-400" />
+                    {detail.email}
                   </p>
                 </div>
               )}
               {detail.address && (
                 <div className="col-span-2">
-                  <p className="text-xs text-gray-500 uppercase tracking-wide">Address</p>
+                  <p className="text-xs text-gray-500 uppercase tracking-wide">
+                    Address
+                  </p>
                   <p className="mt-0.5 text-sm font-medium">{detail.address}</p>
                 </div>
               )}
@@ -276,16 +334,21 @@ function CandidateDetailModal({ candidateId, onClose }: { candidateId: string; o
                   <FileText className="h-3 w-3" /> Exam
                 </p>
                 <p className="mt-0.5 text-sm font-medium">{detail.exam_name}</p>
-                {detail.exam_code && <p className="text-xs text-gray-400">{detail.exam_code}</p>}
+                {detail.exam_code && (
+                  <p className="text-xs text-gray-400">{detail.exam_code}</p>
+                )}
               </div>
               <div>
                 <p className="text-xs text-gray-500 uppercase tracking-wide flex items-center gap-1">
                   <Building2 className="h-3 w-3" /> Centre
                 </p>
-                <p className="mt-0.5 text-sm font-medium">{detail.centre_name}</p>
+                <p className="mt-0.5 text-sm font-medium">
+                  {detail.centre_name}
+                </p>
                 {detail.city && (
                   <p className="text-xs text-gray-400 flex items-center gap-1">
-                    <MapPin className="h-2.5 w-2.5" />{detail.city}
+                    <MapPin className="h-2.5 w-2.5" />
+                    {detail.city}
                   </p>
                 )}
               </div>
@@ -302,15 +365,23 @@ function CandidateDetailModal({ candidateId, onClose }: { candidateId: string; o
                   </p>
                   <div className="flex items-center gap-2 flex-wrap">
                     {detail.latestVerification.verification_method &&
-                      methodBadge(detail.latestVerification.verification_method)}
-                    <span className={`text-xs font-semibold px-2 py-0.5 rounded-full ${
-                      detail.latestVerification.verification_result === "success"
-                        ? "bg-green-100 text-green-800"
-                        : detail.latestVerification.verification_result === "retry"
-                          ? "bg-amber-100 text-amber-800"
-                          : "bg-red-100 text-red-800"
-                    }`}>
-                      {(detail.latestVerification.verification_result || "—").toUpperCase()}
+                      methodBadge(
+                        detail.latestVerification.verification_method,
+                      )}
+                    <span
+                      className={`text-xs font-semibold px-2 py-0.5 rounded-full ${
+                        detail.latestVerification.verification_result ===
+                        "success"
+                          ? "bg-green-100 text-green-800"
+                          : detail.latestVerification.verification_result ===
+                              "retry"
+                            ? "bg-amber-100 text-amber-800"
+                            : "bg-red-100 text-red-800"
+                      }`}
+                    >
+                      {(
+                        detail.latestVerification.verification_result || "—"
+                      ).toUpperCase()}
                     </span>
                   </div>
                 </div>
@@ -322,19 +393,25 @@ function CandidateDetailModal({ candidateId, onClose }: { candidateId: string; o
                       <p className="text-xs text-gray-500">Date &amp; Time</p>
                       <p className="text-sm font-medium">
                         {detail.latestVerification.created_at
-                          ? new Date(detail.latestVerification.created_at).toLocaleString("en-IN")
+                          ? new Date(
+                              detail.latestVerification.created_at,
+                            ).toLocaleString("en-IN")
                           : "—"}
                       </p>
                     </div>
                     {detail.latestVerification.device_id && (
                       <div>
                         <p className="text-xs text-gray-500">Device</p>
-                        <p className="text-sm font-medium">{detail.latestVerification.device_id}</p>
+                        <p className="text-sm font-medium">
+                          {detail.latestVerification.device_id}
+                        </p>
                       </div>
                     )}
                     {detail.latestVerification.verifier_id && (
                       <div className="col-span-2">
-                        <p className="text-xs text-gray-500">Verified By (ID)</p>
+                        <p className="text-xs text-gray-500">
+                          Verified By (ID)
+                        </p>
                         <p className="text-sm font-mono text-gray-600 break-all">
                           {detail.latestVerification.verifier_name ||
                             detail.latestVerification.verifier_id}
@@ -342,7 +419,6 @@ function CandidateDetailModal({ candidateId, onClose }: { candidateId: string; o
                       </div>
                     )}
                   </div>
-
 
                   {/* ── FACE ── */}
                   {(detail.latestVerification.verification_method === "face" ||
@@ -357,30 +433,46 @@ function CandidateDetailModal({ candidateId, onClose }: { candidateId: string; o
 
                       {/* Scores */}
                       <div className="grid grid-cols-2 gap-3">
-                        {detail.latestVerification.verification_percentage != null && (
+                        {detail.latestVerification.verification_percentage !=
+                          null && (
                           <div>
                             <p className="text-xs text-blue-600">Match Score</p>
-                            <p className={`text-base ${scoreColor(detail.latestVerification.verification_percentage)}`}>
-                              {fmtScore(detail.latestVerification.verification_percentage)}
+                            <p
+                              className={`text-base ${scoreColor(detail.latestVerification.verification_percentage)}`}
+                            >
+                              {fmtScore(
+                                detail.latestVerification
+                                  .verification_percentage,
+                              )}
                             </p>
                           </div>
                         )}
                         {detail.latestVerification.confidence_score != null && (
                           <div>
-                            <p className="text-xs text-blue-600">Confidence Score</p>
-                            <p className={`text-base ${scoreColor(detail.latestVerification.confidence_score)}`}>
-                              {fmtScore(detail.latestVerification.confidence_score)}
+                            <p className="text-xs text-blue-600">
+                              Confidence Score
+                            </p>
+                            <p
+                              className={`text-base ${scoreColor(detail.latestVerification.confidence_score)}`}
+                            >
+                              {fmtScore(
+                                detail.latestVerification.confidence_score,
+                              )}
                             </p>
                           </div>
                         )}
                       </div>
 
                       {/* Side-by-side: Stored photo vs Captured photo */}
-                      {(detail.photo_url || detail.latestVerification.captured_photo || detail.latestVerification.photo_captured_url) && (
+                      {(detail.photo_url ||
+                        detail.latestVerification.captured_photo ||
+                        detail.latestVerification.photo_captured_url) && (
                         <div className="grid grid-cols-2 gap-3">
                           {/* Stored / Registered photo */}
                           <div className="text-center">
-                            <p className="text-xs text-blue-600 mb-1.5 font-medium">Registered Photo</p>
+                            <p className="text-xs text-blue-600 mb-1.5 font-medium">
+                              Registered Photo
+                            </p>
                             {detail.photo_url ? (
                               <img
                                 src={detail.photo_url}
@@ -396,15 +488,25 @@ function CandidateDetailModal({ candidateId, onClose }: { candidateId: string; o
 
                           {/* Captured photo during verification */}
                           <div className="text-center">
-                            <p className="text-xs text-blue-600 mb-1.5 font-medium">Captured at Verification</p>
+                            <p className="text-xs text-blue-600 mb-1.5 font-medium">
+                              Captured at Verification
+                            </p>
                             {(() => {
-                              const capturedUrl = detail.latestVerification.photo_captured_url;
-                              const capturedBase64 = detail.latestVerification.captured_photo; console.log("capturedBase64 length:", capturedBase64 ? capturedBase64.length : 0);
+                              const capturedUrl =
+                                detail.latestVerification.photo_captured_url;
+                              const capturedBase64 =
+                                detail.latestVerification.captured_photo;
+                              console.log(
+                                "capturedBase64 length:",
+                                capturedBase64 ? capturedBase64.length : 0,
+                              );
                               // Use URL if available, otherwise build data URL from base64
                               const src = capturedUrl
                                 ? capturedUrl
                                 : capturedBase64
-                                  ? (capturedBase64.startsWith("data:") ? capturedBase64 : `data:image/jpeg;base64,${capturedBase64}`)
+                                  ? capturedBase64.startsWith("data:")
+                                    ? capturedBase64
+                                    : `data:image/jpeg;base64,${capturedBase64}`
                                   : null;
                               return src ? (
                                 <img
@@ -414,7 +516,9 @@ function CandidateDetailModal({ candidateId, onClose }: { candidateId: string; o
                                 />
                               ) : (
                                 <div className="w-full max-w-[140px] mx-auto aspect-square rounded-xl bg-gray-100 flex items-center justify-center border-2 border-dashed border-gray-300">
-                                  <p className="text-xs text-gray-400 text-center px-2">Not captured</p>
+                                  <p className="text-xs text-gray-400 text-center px-2">
+                                    Not captured
+                                  </p>
                                 </div>
                               );
                             })()}
@@ -424,12 +528,12 @@ function CandidateDetailModal({ candidateId, onClose }: { candidateId: string; o
                     </div>
                   )}
 
-
-
                   {/* ── FINGERPRINT ── */}
-                  {(detail.latestVerification.verification_method === "fingerprint" ||
+                  {(detail.latestVerification.verification_method ===
+                    "fingerprint" ||
                     detail.latestVerification.fingerprint_match_score != null ||
-                    detail.latestVerification.captured_fingerprint_vector) && (
+                    detail.latestVerification.captured_fingerprint_vector ||
+                    detail.latestVerification.captured_fingerprint_image) && (
                     <div className="rounded-lg bg-purple-50 border border-purple-100 p-3 space-y-3">
                       <p className="text-xs font-semibold text-purple-700 uppercase tracking-wide">
                         Fingerprint Verification
@@ -437,38 +541,63 @@ function CandidateDetailModal({ candidateId, onClose }: { candidateId: string; o
 
                       {/* Scores + finger name */}
                       <div className="grid grid-cols-2 gap-3">
-                        {detail.latestVerification.fingerprint_match_score != null && (
+                        {detail.latestVerification.fingerprint_match_score !=
+                          null && (
                           <div>
-                            <p className="text-xs text-purple-600">Match Score</p>
-                            <p className={`text-base ${scoreColor(detail.latestVerification.fingerprint_match_score)}`}>
-                              {fmtScore(detail.latestVerification.fingerprint_match_score)}
+                            <p className="text-xs text-purple-600">
+                              Match Score
+                            </p>
+                            <p
+                              className={`text-base ${scoreColor(detail.latestVerification.fingerprint_match_score)}`}
+                            >
+                              {fmtScore(
+                                detail.latestVerification
+                                  .fingerprint_match_score,
+                              )}
                             </p>
                           </div>
                         )}
-                        {detail.latestVerification.fingerprint_quality != null && (
+                        {detail.latestVerification.fingerprint_quality !=
+                          null && (
                           <div>
                             <p className="text-xs text-purple-600">Quality</p>
-                            <p className={`text-base ${scoreColor(detail.latestVerification.fingerprint_quality)}`}>
-                              {fmtScore(detail.latestVerification.fingerprint_quality)}
+                            <p
+                              className={`text-base ${scoreColor(detail.latestVerification.fingerprint_quality)}`}
+                            >
+                              {fmtScore(
+                                detail.latestVerification.fingerprint_quality,
+                              )}
                             </p>
                           </div>
                         )}
                         {detail.latestVerification.finger_name && (
                           <div className="col-span-2">
-                            <p className="text-xs text-purple-600">Finger Used</p>
+                            <p className="text-xs text-purple-600">
+                              Finger Used
+                            </p>
                             <p className="text-sm font-medium capitalize">
-                              {detail.latestVerification.finger_name.replace(/_/g, " ")}
+                              {detail.latestVerification.finger_name.replace(
+                                /_/g,
+                                " ",
+                              )}
                             </p>
                           </div>
                         )}
                       </div>
 
                       {/* Captured fingerprint image */}
-                      {detail.latestVerification.captured_fingerprint_vector && (
+                      {(detail.latestVerification.captured_fingerprint_image ||
+                        detail.latestVerification
+                          .captured_fingerprint_vector) && (
                         <div>
-                          <p className="text-xs text-purple-600 mb-1.5 font-medium">Captured Fingerprint Image</p>
+                          <p className="text-xs text-purple-600 mb-1.5 font-medium">
+                            Captured Fingerprint Image
+                          </p>
                           {(() => {
-                            const raw = detail.latestVerification.captured_fingerprint_vector as string;
+                            const raw = (detail.latestVerification
+                              .captured_fingerprint_image ||
+                              detail.latestVerification
+                                .captured_fingerprint_vector) as string;
                             // The Mantra SDK returns a base64 BMP image.
                             // Try to render it; support both raw base64 and URLs
                             const src = raw.startsWith("http")
@@ -488,47 +617,105 @@ function CandidateDetailModal({ candidateId, onClose }: { candidateId: string; o
                                     t.src = `data:image/png;base64,${raw}`;
                                   } else {
                                     t.style.display = "none";
-                                    t.nextElementSibling?.classList.remove("hidden");
+                                    t.nextElementSibling?.classList.remove(
+                                      "hidden",
+                                    );
                                   }
                                 }}
                               />
                             );
                           })()}
-                          <p className="hidden text-xs text-center text-gray-400 mt-1">Image could not be displayed</p>
+                          <p className="hidden text-xs text-center text-gray-400 mt-1">
+                            Image could not be displayed
+                          </p>
                         </div>
                       )}
                     </div>
                   )}
 
-
                   {/* ── IRIS ── */}
                   {(detail.latestVerification.verification_method === "iris" ||
-                    detail.latestVerification.eye_name) && (
+                    detail.latestVerification.eye_name ||
+                    detail.latestVerification.iris_match_score != null ||
+                    detail.latestVerification.iris_image ||
+                    detail.latestVerification.iris_image_url) && (
                     <div className="rounded-lg bg-cyan-50 border border-cyan-100 p-3 space-y-2">
                       <p className="text-xs font-semibold text-cyan-700 uppercase tracking-wide">
                         Iris Verification
                       </p>
                       <div className="grid grid-cols-2 gap-3">
+                        {detail.latestVerification.iris_match_score != null && (
+                          <div>
+                            <p className="text-xs text-cyan-600">Match Score</p>
+                            <p
+                              className={`text-base ${scoreColor(detail.latestVerification.iris_match_score)}`}
+                            >
+                              {fmtScore(
+                                detail.latestVerification.iris_match_score,
+                              )}
+                            </p>
+                          </div>
+                        )}
+                        {detail.latestVerification.iris_quality != null && (
+                          <div>
+                            <p className="text-xs text-cyan-600">Quality</p>
+                            <p
+                              className={`text-base ${scoreColor(detail.latestVerification.iris_quality)}`}
+                            >
+                              {fmtScore(detail.latestVerification.iris_quality)}
+                            </p>
+                          </div>
+                        )}
                         {detail.latestVerification.eye_name && (
                           <div>
                             <p className="text-xs text-cyan-600">Eye Used</p>
                             <p className="text-sm font-medium capitalize">
-                              {detail.latestVerification.eye_name.replace(/_/g, " ")}
+                              {detail.latestVerification.eye_name.replace(
+                                /_/g,
+                                " ",
+                              )}
                             </p>
                           </div>
                         )}
                         <div>
                           <p className="text-xs text-cyan-600">Iris Data</p>
                           <p className="text-sm font-medium">
-                            {detail.latestVerification.iris_vector ? "Captured ✓" : "—"}
+                            {detail.latestVerification.iris_vector
+                              ? "Captured ✓"
+                              : "—"}
                           </p>
                         </div>
                       </div>
+                      {(detail.latestVerification.iris_image ||
+                        detail.latestVerification.iris_image_url) && (
+                        <div>
+                          <p className="text-xs text-cyan-600 mb-1.5 font-medium">
+                            Captured Iris Image
+                          </p>
+                          {(() => {
+                            const raw = (detail.latestVerification
+                              .iris_image_url ||
+                              detail.latestVerification.iris_image) as string;
+                            const src =
+                              raw.startsWith("http") || raw.startsWith("data:")
+                                ? raw
+                                : `data:image/jpeg;base64,${raw}`;
+                            return (
+                              <img
+                                src={src}
+                                alt="Captured iris"
+                                className="h-28 w-28 mx-auto object-cover rounded-full border-2 border-cyan-200 bg-white shadow"
+                              />
+                            );
+                          })()}
+                        </div>
+                      )}
                     </div>
                   )}
 
                   {/* ── AADHAAR ── */}
-                  {(detail.latestVerification.verification_method === "aadhaar" ||
+                  {(detail.latestVerification.verification_method ===
+                    "aadhaar" ||
                     detail.latestVerification.aadhaar_verified != null ||
                     detail.latestVerification.aadhaar_verification_status) && (
                     <div className="rounded-lg bg-orange-50 border border-orange-100 p-3 space-y-2">
@@ -536,11 +723,15 @@ function CandidateDetailModal({ candidateId, onClose }: { candidateId: string; o
                         Aadhaar Verification
                       </p>
                       <div className="grid grid-cols-2 gap-3">
-                        {detail.latestVerification.aadhaar_verification_status && (
+                        {detail.latestVerification
+                          .aadhaar_verification_status && (
                           <div>
                             <p className="text-xs text-orange-600">Status</p>
                             <p className="text-sm font-medium capitalize">
-                              {detail.latestVerification.aadhaar_verification_status}
+                              {
+                                detail.latestVerification
+                                  .aadhaar_verification_status
+                              }
                             </p>
                           </div>
                         )}
@@ -548,13 +739,17 @@ function CandidateDetailModal({ candidateId, onClose }: { candidateId: string; o
                           <div>
                             <p className="text-xs text-orange-600">Verified</p>
                             <p className="text-sm font-medium">
-                              {detail.latestVerification.aadhaar_verified ? "Yes ✓" : "No"}
+                              {detail.latestVerification.aadhaar_verified
+                                ? "Yes ✓"
+                                : "No"}
                             </p>
                           </div>
                         )}
                         {detail.latestVerification.aadhaar_number_masked && (
                           <div className="col-span-2">
-                            <p className="text-xs text-orange-600">Aadhaar (Masked)</p>
+                            <p className="text-xs text-orange-600">
+                              Aadhaar (Masked)
+                            </p>
                             <p className="text-sm font-mono">
                               {detail.latestVerification.aadhaar_number_masked}
                             </p>
@@ -567,7 +762,9 @@ function CandidateDetailModal({ candidateId, onClose }: { candidateId: string; o
               </div>
             ) : (
               <div className="border rounded-lg p-4 bg-gray-50 text-center">
-                <p className="text-sm text-gray-500">No verification record yet</p>
+                <p className="text-sm text-gray-500">
+                  No verification record yet
+                </p>
               </div>
             )}
           </div>
@@ -576,9 +773,6 @@ function CandidateDetailModal({ candidateId, onClose }: { candidateId: string; o
     </Dialog>
   );
 }
-
-
-
 
 export function ManagerCandidatesContent() {
   const searchParams = useSearchParams();
@@ -592,7 +786,9 @@ export function ManagerCandidatesContent() {
   const initialStatus = searchParams.get("status") || "all";
 
   // Shift filter: use URL param if present (came from drill-down), else use dropdown state
-  const [selectedShiftId, setSelectedShiftId] = useState<string | undefined>(undefined);
+  const [selectedShiftId, setSelectedShiftId] = useState<string | undefined>(
+    undefined,
+  );
   const effectiveShiftId = urlShiftId || selectedShiftId;
   const shiftId = urlShiftId; // keep old var for table column hiding
 
@@ -602,18 +798,29 @@ export function ManagerCandidatesContent() {
   const [statusFilter, setStatusFilter] = useState<string>(initialStatus);
   const [sortKey, setSortKey] = useState<SortKey>("full_name");
   const [sortDir, setSortDir] = useState<SortDir>("asc");
-  const [selectedCandidateId, setSelectedCandidateId] = useState<string | null>(null);
+  const [selectedCandidateId, setSelectedCandidateId] = useState<string | null>(
+    null,
+  );
 
   const loadCandidates = useCallback(async () => {
     setLoading(true);
     try {
       if (centreId && effectiveShiftId) {
-        const { getManagerCandidatesByShift } = await import("@/app/actions/supabase-actions");
-        const data = await getManagerCandidatesByShift(centreId, effectiveShiftId);
+        const { getManagerCandidatesByShift } =
+          await import("@/app/actions/supabase-actions");
+        const data = await getManagerCandidatesByShift(
+          centreId,
+          effectiveShiftId,
+        );
         setCandidates(data || []);
       } else {
-        const { getManagerCandidates } = await import("@/app/actions/supabase-actions");
-        const data = await getManagerCandidates(centreId, city, effectiveShiftId);
+        const { getManagerCandidates } =
+          await import("@/app/actions/supabase-actions");
+        const data = await getManagerCandidates(
+          centreId,
+          city,
+          effectiveShiftId,
+        );
         setCandidates(data || []);
       }
     } catch (err) {
@@ -646,7 +853,8 @@ export function ManagerCandidatesContent() {
       c.centre_name.toLowerCase().includes(q) ||
       (c.father_name?.toLowerCase().includes(q) ?? false) ||
       (c.shift_name?.toLowerCase().includes(q) ?? false);
-    const matchesStatus = statusFilter === "all" || c.verification_status === statusFilter;
+    const matchesStatus =
+      statusFilter === "all" || c.verification_status === statusFilter;
     return matchesSearch && matchesStatus;
   });
 
@@ -655,13 +863,17 @@ export function ManagerCandidatesContent() {
     if (!sortKey) return 0;
     const aVal = String(a[sortKey as keyof Candidate] || "");
     const bVal = String(b[sortKey as keyof Candidate] || "");
-    return sortDir === "asc" ? aVal.localeCompare(bVal) : bVal.localeCompare(aVal);
+    return sortDir === "asc"
+      ? aVal.localeCompare(bVal)
+      : bVal.localeCompare(aVal);
   });
 
   const stats = {
     total: candidates.length,
-    verified: candidates.filter((c) => c.verification_status === "verified").length,
-    pending: candidates.filter((c) => c.verification_status === "pending").length,
+    verified: candidates.filter((c) => c.verification_status === "verified")
+      .length,
+    pending: candidates.filter((c) => c.verification_status === "pending")
+      .length,
     absent: candidates.filter((c) => c.verification_status === "absent").length,
   };
 
@@ -672,7 +884,10 @@ export function ManagerCandidatesContent() {
     ];
     if (centreName) {
       parts.push({ label: "Centres", href: "/manager/centres" });
-      parts.push({ label: centreName, href: centreId ? `/manager/centres/${centreId}` : undefined });
+      parts.push({
+        label: centreName,
+        href: centreId ? `/manager/centres/${centreId}` : undefined,
+      });
       if (shiftName) parts.push({ label: shiftName });
       else parts.push({ label: "Candidates" });
     } else if (city) {
@@ -687,10 +902,10 @@ export function ManagerCandidatesContent() {
   const pageTitle = shiftName
     ? `Candidates — ${shiftName}`
     : centreName
-    ? `Candidates — ${centreName}`
-    : city
-    ? `Candidates — ${city}`
-    : "All Candidates";
+      ? `Candidates — ${centreName}`
+      : city
+        ? `Candidates — ${city}`
+        : "All Candidates";
 
   if (loading) {
     return (
@@ -725,7 +940,9 @@ export function ManagerCandidatesContent() {
       <div className="flex items-start justify-between flex-wrap gap-3">
         <div>
           <h1 className="text-2xl font-bold text-gray-900">{pageTitle}</h1>
-          <p className="text-gray-600 text-sm">Click column headers to sort · Click candidate to view details</p>
+          <p className="text-gray-600 text-sm">
+            Click column headers to sort · Click candidate to view details
+          </p>
         </div>
         {/* Show shift dropdown only when not already filtered via URL (e.g. centre drill-down) */}
         {!urlShiftId && (
@@ -739,19 +956,43 @@ export function ManagerCandidatesContent() {
       {/* Status Filter Cards */}
       <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
         {[
-          { label: "Total", count: stats.total, colorClass: "border-blue-500 bg-blue-50 text-blue-700", filter: "all" },
-          { label: "Verified", count: stats.verified, colorClass: "border-green-500 bg-green-50 text-green-700", filter: "verified" },
-          { label: "Pending", count: stats.pending, colorClass: "border-amber-500 bg-amber-50 text-amber-700", filter: "pending" },
-          { label: "Absent", count: stats.absent, colorClass: "border-red-500 bg-red-50 text-red-700", filter: "absent" },
+          {
+            label: "Total",
+            count: stats.total,
+            colorClass: "border-blue-500 bg-blue-50 text-blue-700",
+            filter: "all",
+          },
+          {
+            label: "Verified",
+            count: stats.verified,
+            colorClass: "border-green-500 bg-green-50 text-green-700",
+            filter: "verified",
+          },
+          {
+            label: "Pending",
+            count: stats.pending,
+            colorClass: "border-amber-500 bg-amber-50 text-amber-700",
+            filter: "pending",
+          },
+          {
+            label: "Absent",
+            count: stats.absent,
+            colorClass: "border-red-500 bg-red-50 text-red-700",
+            filter: "absent",
+          },
         ].map(({ label, count, colorClass, filter }) => (
           <button
             key={filter}
             onClick={() => setStatusFilter(filter)}
             className={`rounded-lg border-2 p-4 text-left transition-all ${
-              statusFilter === filter ? colorClass : "border-gray-200 bg-white hover:border-gray-300 text-gray-700"
+              statusFilter === filter
+                ? colorClass
+                : "border-gray-200 bg-white hover:border-gray-300 text-gray-700"
             }`}
           >
-            <p className="text-xs uppercase tracking-wide opacity-70">{label}</p>
+            <p className="text-xs uppercase tracking-wide opacity-70">
+              {label}
+            </p>
             <p className="text-2xl font-bold mt-1">{count}</p>
           </button>
         ))}
@@ -781,23 +1022,73 @@ export function ManagerCandidatesContent() {
             <div className="py-12 text-center">
               <Users className="mx-auto h-12 w-12 text-gray-400" />
               <p className="mt-4 text-gray-600">
-                {searchQuery ? "No matching candidates found" : "No candidates found"}
+                {searchQuery
+                  ? "No matching candidates found"
+                  : "No candidates found"}
               </p>
             </div>
           ) : (
             <Table>
               <TableHeader>
                 <TableRow>
-                  <SortableHead col="roll_number" label="Roll No" sortKey={sortKey} sortDir={sortDir} onSort={handleSort} />
-                  <SortableHead col="full_name" label="Name" sortKey={sortKey} sortDir={sortDir} onSort={handleSort} />
-                  <SortableHead col="father_name" label="Father's Name" sortKey={sortKey} sortDir={sortDir} onSort={handleSort} />
-                  <SortableHead col="centre_name" label="Centre" sortKey={sortKey} sortDir={sortDir} onSort={handleSort} />
+                  <SortableHead
+                    col="roll_number"
+                    label="Roll No"
+                    sortKey={sortKey}
+                    sortDir={sortDir}
+                    onSort={handleSort}
+                  />
+                  <SortableHead
+                    col="full_name"
+                    label="Name"
+                    sortKey={sortKey}
+                    sortDir={sortDir}
+                    onSort={handleSort}
+                  />
+                  <SortableHead
+                    col="father_name"
+                    label="Father's Name"
+                    sortKey={sortKey}
+                    sortDir={sortDir}
+                    onSort={handleSort}
+                  />
+                  <SortableHead
+                    col="centre_name"
+                    label="Centre"
+                    sortKey={sortKey}
+                    sortDir={sortDir}
+                    onSort={handleSort}
+                  />
                   {!shiftId && (
-                    <SortableHead col="shift_name" label="Shift" sortKey={sortKey} sortDir={sortDir} onSort={handleSort} />
+                    <SortableHead
+                      col="shift_name"
+                      label="Shift"
+                      sortKey={sortKey}
+                      sortDir={sortDir}
+                      onSort={handleSort}
+                    />
                   )}
-                  <SortableHead col="city" label="City" sortKey={sortKey} sortDir={sortDir} onSort={handleSort} />
-                  <SortableHead col="exam_code" label="Exam" sortKey={sortKey} sortDir={sortDir} onSort={handleSort} />
-                  <SortableHead col="verification_status" label="Status" sortKey={sortKey} sortDir={sortDir} onSort={handleSort} />
+                  <SortableHead
+                    col="city"
+                    label="City"
+                    sortKey={sortKey}
+                    sortDir={sortDir}
+                    onSort={handleSort}
+                  />
+                  <SortableHead
+                    col="exam_code"
+                    label="Exam"
+                    sortKey={sortKey}
+                    sortDir={sortDir}
+                    onSort={handleSort}
+                  />
+                  <SortableHead
+                    col="verification_status"
+                    label="Status"
+                    sortKey={sortKey}
+                    sortDir={sortDir}
+                    onSort={handleSort}
+                  />
                   <TableHead className="text-right">Actions</TableHead>
                 </TableRow>
               </TableHeader>
@@ -809,7 +1100,9 @@ export function ManagerCandidatesContent() {
                     onClick={() => setSelectedCandidateId(candidate.id)}
                   >
                     <TableCell>
-                      <span className="font-mono text-sm text-gray-700">{candidate.roll_number}</span>
+                      <span className="font-mono text-sm text-gray-700">
+                        {candidate.roll_number}
+                      </span>
                     </TableCell>
                     <TableCell>
                       <div className="flex items-center gap-2">
@@ -826,7 +1119,9 @@ export function ManagerCandidatesContent() {
                             </span>
                           </div>
                         )}
-                        <p className="font-medium text-gray-900 whitespace-nowrap">{candidate.full_name}</p>
+                        <p className="font-medium text-gray-900 whitespace-nowrap">
+                          {candidate.full_name}
+                        </p>
                       </div>
                     </TableCell>
                     <TableCell className="text-gray-600 text-sm whitespace-nowrap">
@@ -852,7 +1147,10 @@ export function ManagerCandidatesContent() {
                     <TableCell>
                       <div className="text-xs text-gray-600">
                         <p className="font-medium">{candidate.exam_code}</p>
-                        <p className="text-gray-400 truncate max-w-[100px]" title={candidate.exam_name}>
+                        <p
+                          className="text-gray-400 truncate max-w-[100px]"
+                          title={candidate.exam_name}
+                        >
                           {candidate.exam_name}
                         </p>
                       </div>
@@ -860,7 +1158,10 @@ export function ManagerCandidatesContent() {
                     <TableCell>
                       <StatusBadge status={candidate.verification_status} />
                     </TableCell>
-                    <TableCell className="text-right" onClick={(e) => e.stopPropagation()}>
+                    <TableCell
+                      className="text-right"
+                      onClick={(e) => e.stopPropagation()}
+                    >
                       <Button
                         size="sm"
                         variant="outline"

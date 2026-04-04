@@ -114,13 +114,15 @@ async function fetchTestingExamPayload(supabase: any, exam: any) {
   // 2. Load all candidates for this exam — include all biometric image fields
   const { data: candidates, error: candidatesError } = await supabase
     .from("candidates")
-    .select(`
+    .select(
+      `
       id, roll_number, full_name, father_name,
       verification_status, verification_attempts,
       centre_id, shift_id, created_at,
       photo_url, fingerprint_image_url, fingerprint_image_base64, iris_image_url, iris_image_base64,
       fingerprint_template, iris_vector
-    `)
+    `,
+    )
     .eq("exam_id", exam.id)
     .order("roll_number", { ascending: true });
 
@@ -138,20 +140,23 @@ async function fetchTestingExamPayload(supabase: any, exam: any) {
   // 3. Load all verifications — include captured biometric images, match scores, and remarks
   const { data: verifications, error: verError } = await supabase
     .from("verifications")
-    .select(`
+    .select(
+      `
       id, candidate_id, verifier_id, verifier_name,
       verification_method, verification_result,
       verification_percentage, confidence_score,
       created_at, candidate_roll_no, candidate_name,
       finger_name, eye_name, is_testing_mode, aadhaar_verified,
+      fingerprint_match_score, fingerprint_quality,
+      iris_match_score, iris_quality, iris_vector,
       remarks,
       captured_photo, captured_photo_url, photo_captured_url,
-      captured_fingerprint_image, fingerprint_image_url,
+      captured_fingerprint_image, captured_fingerprint_vector, fingerprint_image_url,
       iris_image, iris_image_url
-    `)
+    `,
+    )
     .in("candidate_id", candidateIds)
     .order("created_at", { ascending: false });
-
 
   if (verError) {
     console.error("Error fetching testing verifications:", verError);
@@ -165,7 +170,6 @@ async function fetchTestingExamPayload(supabase: any, exam: any) {
 }
 
 export async function getExams() {
-
   const session = await getAuthSession();
   if (!session) return [];
 
@@ -417,7 +421,9 @@ export async function getCandidates(
   const supabase = await createAdminClient();
   let query = supabase
     .from("candidates")
-    .select("id, roll_number, full_name, father_name, email, phone, date_of_birth, gender, photo_url, fingerprint_image_url, fingerprint_image_base64, fingerprint_template, iris_image_url, iris_image_base64, iris_vector, verification_status, verification_attempts, centre_id, shift_id, created_at, exam_id, verifications(*)")
+    .select(
+      "id, roll_number, full_name, father_name, email, phone, date_of_birth, gender, photo_url, fingerprint_image_url, fingerprint_image_base64, fingerprint_template, iris_image_url, iris_image_base64, iris_vector, verification_status, verification_attempts, centre_id, shift_id, created_at, exam_id, verifications(*)",
+    )
     .in("exam_id", examIds)
     .order("created_at", { ascending: false });
 
@@ -439,7 +445,9 @@ export async function getCandidates(
   // Format exam_date field to remove time component (YYYY-MM-DD only)
   const formattedData = data?.map((candidate) => ({
     ...candidate,
-    exam_date: (candidate as any).exam_date ? (candidate as any).exam_date.split("T")[0] : null,
+    exam_date: (candidate as any).exam_date
+      ? (candidate as any).exam_date.split("T")[0]
+      : null,
   }));
 
   return formattedData || [];
@@ -649,7 +657,8 @@ export async function getRecentVerificationActivity(limit = 10) {
 
   const { data, error } = await supabase
     .from("verifications")
-    .select(`
+    .select(
+      `
       id,
       verification_method,
       verification_result,
@@ -662,7 +671,8 @@ export async function getRecentVerificationActivity(limit = 10) {
       candidate_name,
       candidates!verifications_candidate_id_fkey(id, roll_number, full_name),
       users!verifications_verifier_id_fkey(id, full_name)
-    `)
+    `,
+    )
     .order("created_at", { ascending: false })
     .limit(limit);
 
@@ -674,7 +684,8 @@ export async function getRecentVerificationActivity(limit = 10) {
   return (data || []).map((v) => {
     const candidate = v.candidates as any;
     const verifier = v.users as any;
-    const rollNumber = candidate?.roll_number || v.candidate_roll_no || "Unknown";
+    const rollNumber =
+      candidate?.roll_number || v.candidate_roll_no || "Unknown";
     const candidateName = candidate?.full_name || v.candidate_name || "";
     const verifierName = verifier?.full_name || "Unknown Verifier";
     const score = v.verification_percentage ?? v.confidence_score;
@@ -745,16 +756,22 @@ export async function getActiveCentres() {
 
   const verifierCountMap = new Map<string, number>();
   (verifierAssignments || []).forEach((va) => {
-    verifierCountMap.set(va.centre_id, (verifierCountMap.get(va.centre_id) || 0) + 1);
+    verifierCountMap.set(
+      va.centre_id,
+      (verifierCountMap.get(va.centre_id) || 0) + 1,
+    );
   });
 
   const result = centres
     .map((centre) => {
       const cc = (candidates || []).filter((c) => c.centre_id === centre.id);
       const total = cc.length;
-      const verified = cc.filter((c) => c.verification_status === "verified").length;
+      const verified = cc.filter(
+        (c) => c.verification_status === "verified",
+      ).length;
       const verifierCount = verifierCountMap.get(centre.id) || 0;
-      const completionPct = total > 0 ? Math.round((verified / total) * 100) : 0;
+      const completionPct =
+        total > 0 ? Math.round((verified / total) * 100) : 0;
 
       return {
         id: centre.id,
@@ -771,8 +788,6 @@ export async function getActiveCentres() {
 
   return result;
 }
-
-
 
 export async function createShift(shiftData: {
   shift_name: string;
@@ -1802,7 +1817,9 @@ export async function getManagerAllShifts() {
 
   const { data: assignments } = await supabase
     .from("manager_centre_assignments")
-    .select("shift_id, master_shifts!mca_to_shifts_fk(id, shift_name, shift_code, start_time, end_time)")
+    .select(
+      "shift_id, master_shifts!mca_to_shifts_fk(id, shift_name, shift_code, start_time, end_time)",
+    )
     .eq("manager_id", session.userId);
 
   if (!assignments || assignments.length === 0) return [];
@@ -1848,13 +1865,25 @@ export async function getManagerDashboardStats(shiftId?: string) {
   }
 
   if (!assignments || assignments.length === 0) {
-    return { totalCentres: 0, totalCandidates: 0, verifiedCandidates: 0, pendingCandidates: 0 };
+    return {
+      totalCentres: 0,
+      totalCandidates: 0,
+      verifiedCandidates: 0,
+      pendingCandidates: 0,
+    };
   }
 
   const centreIds = [...new Set(assignments.map((a) => a.centre_id))];
 
-  let totalQ = supabase.from("candidates").select("id", { count: "exact", head: true }).in("centre_id", centreIds);
-  let verifiedQ = supabase.from("candidates").select("id", { count: "exact", head: true }).in("centre_id", centreIds).eq("verification_status", "verified");
+  let totalQ = supabase
+    .from("candidates")
+    .select("id", { count: "exact", head: true })
+    .in("centre_id", centreIds);
+  let verifiedQ = supabase
+    .from("candidates")
+    .select("id", { count: "exact", head: true })
+    .in("centre_id", centreIds)
+    .eq("verification_status", "verified");
   if (shiftId) {
     totalQ = totalQ.eq("shift_id", shiftId) as typeof totalQ;
     verifiedQ = verifiedQ.eq("shift_id", shiftId) as typeof verifiedQ;
@@ -1865,7 +1894,12 @@ export async function getManagerDashboardStats(shiftId?: string) {
   const total = totalResult.count || 0;
   const verified = verifiedResult.count || 0;
 
-  return { totalCentres: centreIds.length, totalCandidates: total, verifiedCandidates: verified, pendingCandidates: Math.max(0, total - verified) };
+  return {
+    totalCentres: centreIds.length,
+    totalCandidates: total,
+    verifiedCandidates: verified,
+    pendingCandidates: Math.max(0, total - verified),
+  };
 }
 
 /**
@@ -1880,10 +1914,11 @@ export async function getManagerCentres(shiftId?: string) {
   let assignmentsQ = supabase
     .from("manager_centre_assignments")
     .select(
-      "centre_id, exam_id, shift_id, exams!mca_to_exams_fk(id, exam_name, exam_code), master_centres!mca_to_centres_fk(id, centre_name, centre_code, city, address)"
+      "centre_id, exam_id, shift_id, exams!mca_to_exams_fk(id, exam_name, exam_code), master_centres!mca_to_centres_fk(id, centre_name, centre_code, city, address)",
     )
     .eq("manager_id", session.userId);
-  if (shiftId) assignmentsQ = assignmentsQ.eq("shift_id", shiftId) as typeof assignmentsQ;
+  if (shiftId)
+    assignmentsQ = assignmentsQ.eq("shift_id", shiftId) as typeof assignmentsQ;
 
   const { data: assignments } = await assignmentsQ;
   if (!assignments || assignments.length === 0) return [];
@@ -1902,7 +1937,13 @@ export async function getManagerCentres(shiftId?: string) {
     }
     const exam = a.exams as any;
     if (exam) {
-      centreMap.get(a.centre_id).exams.push({ exam_id: exam.id, exam_name: exam.exam_name, exam_code: exam.exam_code });
+      centreMap
+        .get(a.centre_id)
+        .exams.push({
+          exam_id: exam.id,
+          exam_name: exam.exam_name,
+          exam_code: exam.exam_code,
+        });
     }
   });
 
@@ -1913,15 +1954,25 @@ export async function getManagerCentres(shiftId?: string) {
     .from("candidates")
     .select("id, centre_id, verification_status")
     .in("centre_id", centreIds);
-  if (shiftId) candidatesQ = candidatesQ.eq("shift_id", shiftId) as typeof candidatesQ;
+  if (shiftId)
+    candidatesQ = candidatesQ.eq("shift_id", shiftId) as typeof candidatesQ;
 
   const { data: candidates } = await candidatesQ;
 
   return centres.map((centre) => {
-    const cc = (candidates || []).filter((c) => c.centre_id === centre.centre_id);
+    const cc = (candidates || []).filter(
+      (c) => c.centre_id === centre.centre_id,
+    );
     const total = cc.length;
-    const verified = cc.filter((c) => c.verification_status === "verified").length;
-    return { ...centre, totalCandidates: total, verifiedCandidates: verified, pendingCandidates: Math.max(0, total - verified) };
+    const verified = cc.filter(
+      (c) => c.verification_status === "verified",
+    ).length;
+    return {
+      ...centre,
+      totalCandidates: total,
+      verifiedCandidates: verified,
+      pendingCandidates: Math.max(0, total - verified),
+    };
   });
 }
 
@@ -1938,7 +1989,8 @@ export async function getManagerCityStats(shiftId?: string) {
     .from("manager_centre_assignments")
     .select("centre_id")
     .eq("manager_id", session.userId);
-  if (shiftId) assignmentsQ = assignmentsQ.eq("shift_id", shiftId) as typeof assignmentsQ;
+  if (shiftId)
+    assignmentsQ = assignmentsQ.eq("shift_id", shiftId) as typeof assignmentsQ;
 
   const { data: assignments } = await assignmentsQ;
   if (!assignments || assignments.length === 0) return [];
@@ -1957,7 +2009,8 @@ export async function getManagerCityStats(shiftId?: string) {
     .from("candidates")
     .select("id, centre_id, verification_status")
     .in("centre_id", allowedCentreIds);
-  if (shiftId) candidatesQ = candidatesQ.eq("shift_id", shiftId) as typeof candidatesQ;
+  if (shiftId)
+    candidatesQ = candidatesQ.eq("shift_id", shiftId) as typeof candidatesQ;
 
   const { data: candidates } = await candidatesQ;
 
@@ -1983,7 +2036,11 @@ export async function getManagerCityStats(shiftId?: string) {
 /**
  * Get candidates for the manager filtered by centreId or city.
  */
-export async function getManagerCandidates(centreId?: string, city?: string, shiftId?: string) {
+export async function getManagerCandidates(
+  centreId?: string,
+  city?: string,
+  shiftId?: string,
+) {
   const session = await getAuthSession();
   if (!session || session.role !== "manager") return [];
 
@@ -1993,7 +2050,8 @@ export async function getManagerCandidates(centreId?: string, city?: string, shi
     .from("manager_centre_assignments")
     .select("centre_id")
     .eq("manager_id", session.userId);
-  if (shiftId) assignmentsQ = assignmentsQ.eq("shift_id", shiftId) as typeof assignmentsQ;
+  if (shiftId)
+    assignmentsQ = assignmentsQ.eq("shift_id", shiftId) as typeof assignmentsQ;
 
   const { data: assignments } = await assignmentsQ;
   if (!assignments || assignments.length === 0) return [];
@@ -2015,14 +2073,16 @@ export async function getManagerCandidates(centreId?: string, city?: string, shi
 
   let query = supabase
     .from("candidates")
-    .select(`
+    .select(
+      `
       id, roll_number, full_name, father_name, date_of_birth, gender,
       aadhaar_number, address, email, phone, photo_url,
       verification_status, verification_attempts, centre_id, shift_id, exam_id,
       master_centres!candidates_centre_id_fkey(id, centre_name, city),
       master_shifts!candidates_shift_id_fkey(id, shift_name, shift_code),
       exams!candidates_exam_id_fkey(id, exam_name, exam_code)
-    `)
+    `,
+    )
     .in("centre_id", allowedCentreIds)
     .order("full_name", { ascending: true });
   if (shiftId) query = query.eq("shift_id", shiftId) as typeof query;
@@ -2063,13 +2123,15 @@ export async function getManagerCandidateDetail(candidateId: string) {
 
   const { data: candidate, error } = await supabase
     .from("candidates")
-    .select(`
+    .select(
+      `
       id, roll_number, full_name, father_name, date_of_birth, gender,
       aadhaar_number, address, email, phone, photo_url,
       verification_status, verification_attempts, centre_id, exam_id,
       master_centres!candidates_centre_id_fkey(id, centre_name, centre_code, city, address),
       exams!candidates_exam_id_fkey(id, exam_name, exam_code)
-    `)
+    `,
+    )
     .eq("id", candidateId)
     .in("centre_id", allowedCentreIds)
     .single();
@@ -2107,7 +2169,9 @@ export async function getManagerShiftsForCentre(centreId: string) {
   // Verify this centre belongs to this manager
   const { data: assignments } = await supabase
     .from("manager_centre_assignments")
-    .select("centre_id, shift_id, exam_id, master_shifts!mca_to_shifts_fk(id, shift_name, shift_code, start_time, end_time, gate_open_time, gate_close_time)")
+    .select(
+      "centre_id, shift_id, exam_id, master_shifts!mca_to_shifts_fk(id, shift_name, shift_code, start_time, end_time, gate_open_time, gate_close_time)",
+    )
     .eq("manager_id", session.userId)
     .eq("centre_id", centreId);
 
@@ -2144,7 +2208,9 @@ export async function getManagerShiftsForCentre(centreId: string) {
   return Array.from(shiftMap.values()).map((shift) => {
     const sc = (candidates || []).filter((c) => c.shift_id === shift.shift_id);
     const total = sc.length;
-    const verified = sc.filter((c) => c.verification_status === "verified").length;
+    const verified = sc.filter(
+      (c) => c.verification_status === "verified",
+    ).length;
     return {
       ...shift,
       totalCandidates: total,
@@ -2157,7 +2223,10 @@ export async function getManagerShiftsForCentre(centreId: string) {
 /**
  * Get candidates filtered by centreId AND shiftId for the shift drill-down.
  */
-export async function getManagerCandidatesByShift(centreId: string, shiftId: string) {
+export async function getManagerCandidatesByShift(
+  centreId: string,
+  shiftId: string,
+) {
   const session = await getAuthSession();
   if (!session || session.role !== "manager") return [];
 
@@ -2174,14 +2243,16 @@ export async function getManagerCandidatesByShift(centreId: string, shiftId: str
 
   const { data, error } = await supabase
     .from("candidates")
-    .select(`
+    .select(
+      `
       id, roll_number, full_name, father_name, date_of_birth, gender,
       aadhaar_number, address, email, phone, photo_url,
       verification_status, verification_attempts, centre_id, shift_id, exam_id,
       master_centres!candidates_centre_id_fkey(id, centre_name, city),
       master_shifts!candidates_shift_id_fkey(id, shift_name, shift_code),
       exams!candidates_exam_id_fkey(id, exam_name, exam_code)
-    `)
+    `,
+    )
     .eq("centre_id", centreId)
     .eq("shift_id", shiftId)
     .order("full_name", { ascending: true });
@@ -2315,7 +2386,9 @@ export async function getMasterShifts() {
 
   const { data, error } = await supabase
     .from("master_shifts")
-    .select("id, shift_name, shift_code, start_time, end_time, gate_open_time, gate_close_time, is_active, exam_id")
+    .select(
+      "id, shift_name, shift_code, start_time, end_time, gate_open_time, gate_close_time, is_active, exam_id",
+    )
     .eq("is_active", true)
     .order("start_time");
 
@@ -2341,14 +2414,24 @@ export async function getManagerAllShiftsStats() {
   const { data: assignments } = await supabase
     .from("manager_centre_assignments")
     .select(
-      "centre_id, shift_id, master_shifts!mca_to_shifts_fk(id, shift_name, shift_code, start_time, end_time)"
+      "centre_id, shift_id, master_shifts!mca_to_shifts_fk(id, shift_name, shift_code, start_time, end_time)",
     )
     .eq("manager_id", session.userId);
 
   if (!assignments || assignments.length === 0) return [];
 
   // Build unique shifts map (shift_id → shift info)
-  const shiftMap = new Map<string, { shift_id: string; shift_name: string; shift_code: string; start_time: string | null; end_time: string | null; centre_ids: string[] }>();
+  const shiftMap = new Map<
+    string,
+    {
+      shift_id: string;
+      shift_name: string;
+      shift_code: string;
+      start_time: string | null;
+      end_time: string | null;
+      centre_ids: string[];
+    }
+  >();
   assignments.forEach((a) => {
     const shift = a.master_shifts as any;
     if (!shift) return;
@@ -2383,7 +2466,9 @@ export async function getManagerAllShiftsStats() {
   return Array.from(shiftMap.values()).map((shift) => {
     const sc = (candidates || []).filter((c) => c.shift_id === shift.shift_id);
     const total = sc.length;
-    const verified = sc.filter((c) => c.verification_status === "verified").length;
+    const verified = sc.filter(
+      (c) => c.verification_status === "verified",
+    ).length;
     return {
       shift_id: shift.shift_id,
       shift_name: shift.shift_name,
@@ -2409,7 +2494,9 @@ export async function getManagerCentresByCity(city: string) {
 
   const { data: assignments } = await supabase
     .from("manager_centre_assignments")
-    .select("centre_id, master_centres!mca_to_centres_fk(id, centre_name, centre_code, city)")
+    .select(
+      "centre_id, master_centres!mca_to_centres_fk(id, centre_name, centre_code, city)",
+    )
     .eq("manager_id", session.userId);
 
   if (!assignments || assignments.length === 0) return [];
@@ -2422,7 +2509,9 @@ export async function getManagerCentresByCity(city: string) {
       centre_code: (a.master_centres as any)?.centre_code || "",
       city: (a.master_centres as any)?.city || "",
     }))
-    .filter((c, i, arr) => arr.findIndex((x) => x.centre_id === c.centre_id) === i);
+    .filter(
+      (c, i, arr) => arr.findIndex((x) => x.centre_id === c.centre_id) === i,
+    );
 
   if (cityCentres.length === 0) return [];
 
@@ -2433,9 +2522,13 @@ export async function getManagerCentresByCity(city: string) {
     .in("centre_id", centreIds);
 
   return cityCentres.map((centre) => {
-    const cc = (candidates || []).filter((c) => c.centre_id === centre.centre_id);
+    const cc = (candidates || []).filter(
+      (c) => c.centre_id === centre.centre_id,
+    );
     const total = cc.length;
-    const verified = cc.filter((c) => c.verification_status === "verified").length;
+    const verified = cc.filter(
+      (c) => c.verification_status === "verified",
+    ).length;
     return {
       ...centre,
       totalCandidates: total,
@@ -2457,7 +2550,9 @@ export async function getManagerCentresForShift(shiftId: string) {
 
   const { data: assignments } = await supabase
     .from("manager_centre_assignments")
-    .select("centre_id, master_centres!mca_to_centres_fk(id, centre_name, centre_code, city)")
+    .select(
+      "centre_id, master_centres!mca_to_centres_fk(id, centre_name, centre_code, city)",
+    )
     .eq("manager_id", session.userId)
     .eq("shift_id", shiftId);
 
@@ -2470,7 +2565,9 @@ export async function getManagerCentresForShift(shiftId: string) {
       centre_code: (a.master_centres as any)?.centre_code || "",
       city: (a.master_centres as any)?.city || "",
     }))
-    .filter((c, i, arr) => arr.findIndex((x) => x.centre_id === c.centre_id) === i);
+    .filter(
+      (c, i, arr) => arr.findIndex((x) => x.centre_id === c.centre_id) === i,
+    );
 
   if (uniqueCentres.length === 0) return [];
 
@@ -2482,9 +2579,13 @@ export async function getManagerCentresForShift(shiftId: string) {
     .eq("shift_id", shiftId);
 
   return uniqueCentres.map((centre) => {
-    const cc = (candidates || []).filter((c) => c.centre_id === centre.centre_id);
+    const cc = (candidates || []).filter(
+      (c) => c.centre_id === centre.centre_id,
+    );
     const total = cc.length;
-    const verified = cc.filter((c) => c.verification_status === "verified").length;
+    const verified = cc.filter(
+      (c) => c.verification_status === "verified",
+    ).length;
     return {
       ...centre,
       totalCandidates: total,

@@ -8,12 +8,16 @@ export interface VerificationRequest {
   capturedImageBase64?: string;
   fingerprintData?: string;
   fingerPosition?: string;
+  irisData?: string;
+  irisVector?: string;
+  eyeName?: string;
   aadhaarNumber?: string;
   biometricData?: string;
   authType?: string;
   latitude?: number;
   longitude?: number;
   deviceId?: string;
+  persistResult?: boolean;
 }
 
 export interface VerificationResponse {
@@ -24,7 +28,25 @@ export interface VerificationResponse {
   verificationId: string;
 }
 
+export interface BiometricBackfillResponse {
+  success: boolean;
+  processed: number;
+  updated: number;
+  skipped: number;
+  failed: number;
+  message: string;
+}
+
 async function getAuthToken(): Promise<string | null> {
+  // Primary token source for dashboard auth flow.
+  if (typeof window !== "undefined") {
+    const sessionToken = window.sessionStorage.getItem("access_token");
+    if (sessionToken) {
+      return sessionToken;
+    }
+  }
+
+  // Fallback for paths that rely on Supabase session.
   const supabase = createClient();
   const {
     data: { session },
@@ -75,6 +97,15 @@ export async function verifyFingerprint(
   });
 }
 
+export async function verifyIris(
+  request: VerificationRequest,
+): Promise<VerificationResponse> {
+  return apiRequest<VerificationResponse>("/api/verify/iris", {
+    method: "POST",
+    body: JSON.stringify(request),
+  });
+}
+
 export async function verifyAadhaar(
   request: VerificationRequest,
 ): Promise<VerificationResponse> {
@@ -91,5 +122,17 @@ export async function healthCheck(): Promise<{
 }> {
   return apiRequest<{ status: string; timestamp: string; version: string }>(
     "/health",
+  );
+}
+
+export async function backfillBiometricScores(
+  limit = 200,
+): Promise<BiometricBackfillResponse> {
+  return apiRequest<BiometricBackfillResponse>(
+    "/api/verifications/backfill-biometric-scores",
+    {
+      method: "POST",
+      body: JSON.stringify({ limit }),
+    },
   );
 }
