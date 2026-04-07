@@ -12,8 +12,11 @@ import {
   Activity,
   Edit,
   Eye,
+  Loader2,
+  Zap,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { computeVerificationBiometricScores } from "@/lib/api/verification-api";
 
 export function resolveImageSrc(val: string | null | undefined): string | null {
   if (!val || val === "template" || val === "vector") return null;
@@ -183,8 +186,12 @@ export function CandidateExpandableRow({ candidate, verifications, onView, onEdi
   isTestingExam: boolean;
 }) {
   const [expanded, setExpanded] = useState(false);
+  const [isMatching, setIsMatching] = useState(false);
+  const [matchError, setMatchError] = useState<string | null>(null);
+  // Live scores override — updated after "Run Match" completes
+  const [liveScores, setLiveScores] = useState<{ fp?: number | null; iris?: number | null } | null>(null);
+
   const cvs = verifications?.filter((v) => v.candidate_id === candidate.id) || [];
-  const latestSuccess = cvs.find((v) => v.verification_result?.toLowerCase() === "success");
 
   const hasStoredFP = !!candidate.fingerprint_image_url || !!candidate.fingerprint_image_base64 || !!candidate.fingerprint_template;
   const hasStoredIris = !!candidate.iris_image_url || !!candidate.iris_image_base64 || !!candidate.iris_vector;
@@ -196,6 +203,19 @@ export function CandidateExpandableRow({ candidate, verifications, onView, onEdi
   const irisEnrolledSrc = candidate.iris_image_url 
     ? candidate.iris_image_url 
     : (candidate.iris_image_base64 ? `data:image/jpeg;base64,${candidate.iris_image_base64}` : (hasStoredIris ? "vector" : null));
+
+  async function handleRunMatch(verificationId: string) {
+    setIsMatching(true);
+    setMatchError(null);
+    try {
+      const res = await computeVerificationBiometricScores(verificationId);
+      setLiveScores({ fp: res.fingerprintMatchScore, iris: res.irisMatchScore });
+    } catch (err: any) {
+      setMatchError(err?.message ?? "Match failed");
+    } finally {
+      setIsMatching(false);
+    }
+  }
 
   return (
     <>
@@ -266,6 +286,12 @@ export function CandidateExpandableRow({ candidate, verifications, onView, onEdi
               const result = v.verification_result;
               const parsedRemarks = parseRemarks(v.remarks);
               const faceScore = parsedRemarks.face;
+
+              // Use live scores (post-match) if available, otherwise fall back to DB values
+              const fpScore = liveScores?.fp !== undefined ? liveScores.fp : (v.fingerprint_match_score ?? null);
+              const irisScore = liveScores?.iris !== undefined ? liveScores.iris : (v.iris_match_score ?? null);
+              const hasBiometricData = !!(v.captured_fingerprint_image || v.captured_fingerprint_vector || v.iris_image || v.iris_image_url);
+
               return (
                 <div>
                   <div className="mb-3 flex items-center justify-between px-1">
@@ -285,6 +311,7 @@ export function CandidateExpandableRow({ candidate, verifications, onView, onEdi
                       <span>{new Date(v.created_at).toLocaleString("en-IN", { day: "2-digit", month: "short", hour: "2-digit", minute: "2-digit" })}</span>
                     </div>
                   </div>
+
                   <div className="flex gap-4">
                     <BiometricTypeCard
                       title="Face" titleColor="text-blue-600"
@@ -298,17 +325,50 @@ export function CandidateExpandableRow({ candidate, verifications, onView, onEdi
                       title="Fingerprint" titleColor="text-indigo-600"
                       enrolledSrc={fpEnrolledSrc}
                       capturedSrc={v.captured_fingerprint_image || v.fingerprint_image_url}
-                      result={method === "fingerprint" ? result : null}
-                      isActive={method === "fingerprint"}
+                      score={fpScore}
+                      result={fpScore != null ? (fpScore >= 60 ? "success" : "failed") : null}
+                      isActive={fpScore != null}
+                      isStatusOnly={fpScore == null && !!(v.captured_fingerprint_image || v.captured_fingerprint_vector)}
+                      captured={!!(v.captured_fingerprint_image || v.captured_fingerprint_vector)}
                     />
                     <BiometricTypeCard
                       title="IRIS" titleColor="text-purple-600"
                       enrolledSrc={irisEnrolledSrc}
                       capturedSrc={v.iris_image || v.iris_image_url}
-                      result={method === "iris" ? result : null}
-                      isActive={method === "iris"}
+                      score={irisScore}
+                      result={irisScore != null ? (irisScore >= 60 ? "success" : "failed") : null}
+                      isActive={irisScore != null}
+                      isStatusOnly={irisScore == null && !!(v.iris_image || v.iris_image_url)}
+                      captured={!!(v.iris_image || v.iris_image_url)}
                     />
                   </div>
+
+                  {/* Run Iris & Fingerprint Match button */}
+                  {hasBiometricData && (
+                    <div className="mt-3 flex items-center gap-3">
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        disabled={isMatching}
+                        onClick={() => handleRunMatch(v.id)}
+                        className="text-indigo-700 border-indigo-300 hover:bg-indigo-50"
+                      >
+                        {isMatching ? (
+                          <><Loader2 className="mr-2 h-3.5 w-3.5 animate-spin" /> Running Match…</>
+                        ) : (
+                          <><Zap className="mr-2 h-3.5 w-3.5" /> Run Iris &amp; Fingerprint Match</>
+                        )}
+                      </Button>
+                      {matchError && (
+                        <span className="text-xs text-red-500">{matchError}</span>
+                      )}
+                      {liveScores && !isMatching && (
+                        <span className="text-xs text-green-600 font-medium">
+                          ✓ Match scores updated — FP: {liveScores.fp ?? "n/a"}% · Iris: {liveScores.iris ?? "n/a"}%
+                        </span>
+                      )}
+                    </div>
+                  )}
                 </div>
               );
             })()}

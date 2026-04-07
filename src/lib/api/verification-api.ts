@@ -125,6 +125,22 @@ export async function healthCheck(): Promise<{
   );
 }
 
+export interface ComputeBiometricScoresResponse {
+  success: boolean;
+  fingerprintMatchScore: number | null;
+  irisMatchScore: number | null;
+  message: string;
+}
+
+export async function computeVerificationBiometricScores(
+  verificationId: string,
+): Promise<ComputeBiometricScoresResponse> {
+  return apiRequest<ComputeBiometricScoresResponse>(
+    `/api/verifications/${verificationId}/compute-biometric-scores`,
+    { method: "POST" },
+  );
+}
+
 export async function backfillBiometricScores(
   limit = 200,
 ): Promise<BiometricBackfillResponse> {
