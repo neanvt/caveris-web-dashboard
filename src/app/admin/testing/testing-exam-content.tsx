@@ -417,13 +417,19 @@ function CandidateRow({
 }) {
   const [expanded, setExpanded] = useState(false);
   const [isMatching, setIsMatching] = useState(false);
-  const [liveScores, setLiveScores] = useState<{ fp?: number; iris?: number } | null>(null);
+  const [liveScores, setLiveScores] = useState<{
+    fp?: number;
+    iris?: number;
+  } | null>(null);
 
   const handleRunMatch = async (verificationId: string) => {
     setIsMatching(true);
     try {
       const result = await computeVerificationBiometricScores(verificationId);
-      setLiveScores({ fp: result.fingerprintMatchScore ?? undefined, iris: result.irisMatchScore ?? undefined });
+      setLiveScores({
+        fp: result.fingerprintMatchScore ?? undefined,
+        iris: result.irisMatchScore ?? undefined,
+      });
     } catch (e) {
       console.error("Run match failed", e);
     } finally {
