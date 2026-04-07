@@ -17,7 +17,11 @@ import {
   CreditCard,
   AlertTriangle,
   Activity,
+  Loader2,
+  Zap,
 } from "lucide-react";
+import { Button } from "@/components/ui/button";
+import { computeVerificationBiometricScores } from "@/lib/api/verification-api";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 interface TestingCandidate {
@@ -412,6 +416,20 @@ function CandidateRow({
   verifications: TestingVerification[];
 }) {
   const [expanded, setExpanded] = useState(false);
+  const [isMatching, setIsMatching] = useState(false);
+  const [liveScores, setLiveScores] = useState<{ fp?: number; iris?: number } | null>(null);
+
+  const handleRunMatch = async (verificationId: string) => {
+    setIsMatching(true);
+    try {
+      const result = await computeVerificationBiometricScores(verificationId);
+      setLiveScores({ fp: result.fingerprintMatchScore ?? undefined, iris: result.irisMatchScore ?? undefined });
+    } catch (e) {
+      console.error("Run match failed", e);
+    } finally {
+      setIsMatching(false);
+    }
+  };
   const cvs = verifications.filter((v) => v.candidate_id === candidate.id);
   const latestSuccess = cvs.find(
     (v) => v.verification_result?.toLowerCase() === "success",
@@ -565,7 +583,7 @@ function CandidateRow({
                     : null;
                 const inferredIrisResult =
                   irisScore != null
-                    ? irisScore >= 72
+                    ? irisScore >= 60
                       ? "success"
                       : "failed"
                     : null;
@@ -635,7 +653,7 @@ function CandidateRow({
                           fpv.captured_fingerprint_image ||
                           fpv.fingerprint_image_url
                         }
-                        score={fingerprintScore}
+                        score={liveScores?.fp ?? fingerprintScore}
                         result={
                           method === "fingerprint"
                             ? result
@@ -652,7 +670,7 @@ function CandidateRow({
                         titleColor="text-purple-600"
                         enrolledSrc={irisEnrolledSrc}
                         capturedSrc={iv.iris_image || iv.iris_image_url}
-                        score={irisScore}
+                        score={liveScores?.iris ?? irisScore}
                         result={
                           method === "iris"
                             ? result
@@ -665,6 +683,24 @@ function CandidateRow({
                         isActive={method === "iris"}
                       />
                     </div>
+                    {(fingerprintCaptured || irisCaptured) && (
+                      <div className="mt-3 flex justify-end">
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          onClick={() => handleRunMatch(v.id)}
+                          disabled={isMatching}
+                          className="gap-1.5 text-xs"
+                        >
+                          {isMatching ? (
+                            <Loader2 className="h-3 w-3 animate-spin" />
+                          ) : (
+                            <Zap className="h-3 w-3 text-yellow-500" />
+                          )}
+                          Run Iris & Fingerprint Match
+                        </Button>
+                      </div>
+                    )}
                   </div>
                 );
               })()
