@@ -810,8 +810,9 @@ export function TestingExamContent() {
       try {
         const { backfillBiometricScores } =
           await import("@/lib/api/verification-api");
-        // Ensure rows with biometric images but 0/null scores are recomputed before fetching.
-        await backfillBiometricScores(500);
+        // Force re-score iris/fingerprint using the latest Gabor IriCode algorithm,
+        // overwriting any stale scores computed by previous algorithms.
+        await backfillBiometricScores(500, true);
       } catch (backfillErr) {
         console.warn(
           "Biometric score backfill failed, continuing with current data",

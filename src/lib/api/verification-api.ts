@@ -143,12 +143,13 @@ export async function computeVerificationBiometricScores(
 
 export async function backfillBiometricScores(
   limit = 200,
+  forceRescore = false,
 ): Promise<BiometricBackfillResponse> {
   return apiRequest<BiometricBackfillResponse>(
     "/api/verifications/backfill-biometric-scores",
     {
       method: "POST",
-      body: JSON.stringify({ limit }),
+      body: JSON.stringify({ limit, forceRescore }),
     },
   );
 }
